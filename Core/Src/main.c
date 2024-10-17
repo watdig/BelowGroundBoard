@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "modbus.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -106,6 +106,7 @@ int main(void)
   MX_TIM1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  modbus_setup_rx(12);
 
   /* USER CODE END 2 */
 
@@ -114,7 +115,15 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	  if(modbus_rx())
+	  {
+		  uint16_t buffer[12];
+		  for(uint8_t i = 0; i < 12; i++)
+		  {
+			  buffer[i] = get_response_buffer(i);
+		  }
+		  modbus_setup_rx(12);
+	  }
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
