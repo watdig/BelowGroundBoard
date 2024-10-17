@@ -120,9 +120,9 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     PA7     ------> ADC1_IN7
     PA8     ------> ADC1_IN8
     */
-    GPIO_InitStruct.Pin = Thrust_Sense_A_Pin|Thrust_Sense_B_Pin|Thrust_Sense_C_Pin|Motor_Temp_Pin
+    GPIO_InitStruct.Pin = Thrust_Sensor_A_Pin|Thrust_Sensor_B_Pin|Thrust_Sensor_C_Pin|Motor_Temp_Pin
                           |Earth_Pressure_Pin|Flame_Sensor_Pin|Actuator_A_Pos_Pin|Actuator_B_Pos_Pin
-                          |Actuator_Pos_C_Pin;
+                          |Actuator_C_Pos_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -162,9 +162,9 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
     PA7     ------> ADC1_IN7
     PA8     ------> ADC1_IN8
     */
-    HAL_GPIO_DeInit(GPIOA, Thrust_Sense_A_Pin|Thrust_Sense_B_Pin|Thrust_Sense_C_Pin|Motor_Temp_Pin
+    HAL_GPIO_DeInit(GPIOA, Thrust_Sensor_A_Pin|Thrust_Sensor_B_Pin|Thrust_Sensor_C_Pin|Motor_Temp_Pin
                           |Earth_Pressure_Pin|Flame_Sensor_Pin|Actuator_A_Pos_Pin|Actuator_B_Pos_Pin
-                          |Actuator_Pos_C_Pin);
+                          |Actuator_C_Pos_Pin);
 
   /* USER CODE BEGIN ADC1_MspDeInit 1 */
 
@@ -200,8 +200,8 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
 
     __HAL_RCC_GPIOA_CLK_ENABLE();
     /**I2C1 GPIO Configuration
-    PA9     ------> I2C1_SCL
-    PA10     ------> I2C1_SDA
+    PA9 [PA11]     ------> I2C1_SCL
+    PA10 [PA12]     ------> I2C1_SDA
     */
     GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
@@ -237,8 +237,8 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* hi2c)
     __HAL_RCC_I2C1_CLK_DISABLE();
 
     /**I2C1 GPIO Configuration
-    PA9     ------> I2C1_SCL
-    PA10     ------> I2C1_SDA
+    PA9 [PA11]     ------> I2C1_SCL
+    PA10 [PA12]     ------> I2C1_SDA
     */
     HAL_GPIO_DeInit(GPIOA, GPIO_PIN_9);
 
@@ -443,7 +443,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
     /**USART1 GPIO Configuration
-    PC14-OSCX_IN (PC14)     ------> USART1_TX
+    PC14-OSCX_IN(PC14)     ------> USART1_TX
     PB2     ------> USART1_RX
     PA12 [PA10]     ------> USART1_DE
     */
@@ -493,7 +493,7 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
     __HAL_RCC_USART1_CLK_DISABLE();
 
     /**USART1 GPIO Configuration
-    PC14-OSCX_IN (PC14)     ------> USART1_TX
+    PC14-OSCX_IN(PC14)     ------> USART1_TX
     PB2     ------> USART1_RX
     PA12 [PA10]     ------> USART1_DE
     */

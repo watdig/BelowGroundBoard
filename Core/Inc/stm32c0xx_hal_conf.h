@@ -43,6 +43,7 @@ extern "C" {
 /* #define HAL_IWDG_MODULE_ENABLED   */
 /* #define HAL_IRDA_MODULE_ENABLED   */
 /* #define HAL_PCD_MODULE_ENABLED   */
+/* #define HAL_HCD_MODULE_ENABLED   */
 /* #define HAL_RNG_MODULE_ENABLED   */
 /* #define HAL_RTC_MODULE_ENABLED   */
 /* #define HAL_SMARTCARD_MODULE_ENABLED   */
@@ -248,6 +249,14 @@ in voltage and temperature.*/
 #ifdef HAL_WWDG_MODULE_ENABLED
  #include "stm32c0xx_hal_wwdg.h"
 #endif /* HAL_WWDG_MODULE_ENABLED */
+
+#ifdef HAL_PCD_MODULE_ENABLED
+ #include "stm32c0xx_hal_pcd.h"
+#endif /* HAL_PCD_MODULE_ENABLED */
+
+#ifdef HAL_HCD_MODULE_ENABLED
+ #include "stm32c0xx_hal_hcd.h"
+#endif /* HAL_HCD_MODULE_ENABLED */
 
 /* Exported macro ------------------------------------------------------------*/
 #ifdef  USE_FULL_ASSERT

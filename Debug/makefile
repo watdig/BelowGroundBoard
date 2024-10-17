@@ -60,8 +60,8 @@ all: main-build
 main-build: BelowGroundBoard.elf secondary-outputs
 
 # Tool invocations
-BelowGroundBoard.elf BelowGroundBoard.map: $(OBJS) $(USER_OBJS) C:\STM32CubeIDE\WatDig\BelowGroundBoard\STM32C031C6TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "BelowGroundBoard.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0plus -T"C:\STM32CubeIDE\WatDig\BelowGroundBoard\STM32C031C6TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="BelowGroundBoard.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+BelowGroundBoard.elf BelowGroundBoard.map: $(OBJS) $(USER_OBJS) C:\STM32CubeIDE\WatDig\BelowGroundBoard\STM32C071CBTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "BelowGroundBoard.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0plus -T"C:\STM32CubeIDE\WatDig\BelowGroundBoard\STM32C071CBTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="BelowGroundBoard.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

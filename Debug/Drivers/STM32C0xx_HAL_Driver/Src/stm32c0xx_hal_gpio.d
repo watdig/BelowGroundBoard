@@ -3,7 +3,7 @@ Drivers/STM32C0xx_HAL_Driver/Src/stm32c0xx_hal_gpio.o: \
  ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_hal.h \
  ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_system.h \
  ../Drivers/CMSIS/Device/ST/STM32C0xx/Include/stm32c0xx.h \
- ../Drivers/CMSIS/Device/ST/STM32C0xx/Include/stm32c031xx.h \
+ ../Drivers/CMSIS/Device/ST/STM32C0xx/Include/stm32c071xx.h \
  ../Drivers/CMSIS/Include/core_cm0plus.h \
  ../Drivers/CMSIS/Include/cmsis_version.h \
  ../Drivers/CMSIS/Include/cmsis_compiler.h \
@@ -41,7 +41,7 @@ Drivers/STM32C0xx_HAL_Driver/Src/stm32c0xx_hal_gpio.o: \
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_hal.h:
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_system.h:
 ../Drivers/CMSIS/Device/ST/STM32C0xx/Include/stm32c0xx.h:
-../Drivers/CMSIS/Device/ST/STM32C0xx/Include/stm32c031xx.h:
+../Drivers/CMSIS/Device/ST/STM32C0xx/Include/stm32c071xx.h:
 ../Drivers/CMSIS/Include/core_cm0plus.h:
 ../Drivers/CMSIS/Include/cmsis_version.h:
 ../Drivers/CMSIS/Include/cmsis_compiler.h:

@@ -1,3 +1,6 @@
+../Drivers/STM32C0xx_HAL_Driver/Src/stm32c0xx_hal_pwr_ex.c:81:6:HAL_PWREx_EnablePVMUSB	1
+../Drivers/STM32C0xx_HAL_Driver/Src/stm32c0xx_hal_pwr_ex.c:90:6:HAL_PWREx_DisablePVMUSB	1
+../Drivers/STM32C0xx_HAL_Driver/Src/stm32c0xx_hal_pwr_ex.c:107:19:HAL_PWREx_ConfigPVM	6
 ../Drivers/STM32C0xx_HAL_Driver/Src/stm32c0xx_hal_pwr_ex.c:163:6:HAL_PWREx_EnableInternalWakeUpLine	1
 ../Drivers/STM32C0xx_HAL_Driver/Src/stm32c0xx_hal_pwr_ex.c:173:6:HAL_PWREx_DisableInternalWakeUpLine	1
 ../Drivers/STM32C0xx_HAL_Driver/Src/stm32c0xx_hal_pwr_ex.c:198:19:HAL_PWREx_EnableGPIOPullUp	7

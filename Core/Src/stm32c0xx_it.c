@@ -98,12 +98,12 @@ void HardFault_Handler(void)
   */
 void SVC_Handler(void)
 {
-  /* USER CODE BEGIN SVC_IRQn 0 */
+  /* USER CODE BEGIN SVCall_IRQn 0 */
 
-  /* USER CODE END SVC_IRQn 0 */
-  /* USER CODE BEGIN SVC_IRQn 1 */
+  /* USER CODE END SVCall_IRQn 0 */
+  /* USER CODE BEGIN SVCall_IRQn 1 */
 
-  /* USER CODE END SVC_IRQn 1 */
+  /* USER CODE END SVCall_IRQn 1 */
 }
 
 /**

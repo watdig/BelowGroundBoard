@@ -59,12 +59,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define Thrust_Sense_A_Pin GPIO_PIN_0
-#define Thrust_Sense_A_GPIO_Port GPIOA
-#define Thrust_Sense_B_Pin GPIO_PIN_1
-#define Thrust_Sense_B_GPIO_Port GPIOA
-#define Thrust_Sense_C_Pin GPIO_PIN_2
-#define Thrust_Sense_C_GPIO_Port GPIOA
+#define Thrust_Sensor_A_Pin GPIO_PIN_0
+#define Thrust_Sensor_A_GPIO_Port GPIOA
+#define Thrust_Sensor_B_Pin GPIO_PIN_1
+#define Thrust_Sensor_B_GPIO_Port GPIOA
+#define Thrust_Sensor_C_Pin GPIO_PIN_2
+#define Thrust_Sensor_C_GPIO_Port GPIOA
 #define Motor_Temp_Pin GPIO_PIN_3
 #define Motor_Temp_GPIO_Port GPIOA
 #define Earth_Pressure_Pin GPIO_PIN_4
@@ -75,8 +75,8 @@ void Error_Handler(void);
 #define Actuator_A_Pos_GPIO_Port GPIOA
 #define Actuator_B_Pos_Pin GPIO_PIN_7
 #define Actuator_B_Pos_GPIO_Port GPIOA
-#define Actuator_Pos_C_Pin GPIO_PIN_8
-#define Actuator_Pos_C_GPIO_Port GPIOA
+#define Actuator_C_Pos_Pin GPIO_PIN_8
+#define Actuator_C_Pos_GPIO_Port GPIOA
 #define Encoder_Pulse_B_Pin GPIO_PIN_1
 #define Encoder_Pulse_B_GPIO_Port GPIOD
 #define Encoder_Pulse_A_Pin GPIO_PIN_2
