@@ -28,8 +28,9 @@ typedef enum baud_rate_e
 // Error Codes
 #define MB_SUCCESS 			0x00
 
-uint16_t calculate_crc(uint16_t crc, uint8_t a);
-uint16_t get_response_buffer(uint8_t u8Index);
+uint16_t get_response_buffer(uint8_t index);
+uint8_t get_rx_buffer(uint8_t index);
+
 int8_t read_holding_registers(uint16_t read_address, uint16_t read_quantity, uint8_t id);
 int8_t set_tx_buffer(uint8_t index, uint16_t value);
 int8_t write_multiple_registers(uint16_t write_address, uint16_t write_quantity, uint8_t id);
@@ -37,7 +38,7 @@ int8_t modbus_send(uint8_t *data, uint8_t size);
 int8_t modbus_mic(uint8_t id, uint8_t function_code, uint8_t size);
 
 int8_t modbus_poll_for_response(uint8_t size, uint16_t *rx_len);
-int8_t modbus_setup_rx(uint8_t size);
+int8_t modbus_set_rx(uint8_t size);
 uint8_t modbus_rx();
 
 void store_rx_buffer();
@@ -45,14 +46,10 @@ void store_rx_buffer();
 void set_response_interval(uint32_t delay);
 uint32_t get_response_interval();
 
+
 int8_t modbus_change_baud_rate(uint8_t *baud_rate);
 int8_t modbus_set_baud_rate(uint8_t baud_rate);
 int8_t modbus_get_baud_rate(uint8_t *baud_rate);
-
 uint8_t significant_error(int8_t status);
-
-// Debug Functions
-
-//uint8_t get_modbus_tx(uint8_t index);
 
 #endif /* INC_MODBUS_H_ */

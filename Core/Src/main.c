@@ -52,6 +52,14 @@ UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
+static uint16_t holding_register_database[50] = {
+		10,		// SLAVE_ID
+		0xFFFF, // TBD
+		0xFFFF, // TBD
+		0xFFFF, // TBD
+		0xFFFF, // TBD
+};
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -106,7 +114,7 @@ int main(void)
   MX_TIM1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  modbus_setup_rx(12);
+  modbus_set_rx(12);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -116,12 +124,28 @@ int main(void)
     /* USER CODE END WHILE */
 	  if(modbus_rx())
 	  {
+		  if(get_rx_buffer(0) == holding_register_database[0])
+		  {
+			  switch(get_rx_buffer(1))
+			  {
+				  case 0x03:
+				  {
+					  // Return holding registers
+					  break;
+				  }
+				  case 0x10:
+				  {
+					  // Write holding registers
+					  break;
+				  }
+			  }
+		  }
 		  uint16_t buffer[12];
 		  for(uint8_t i = 0; i < 12; i++)
 		  {
 			  buffer[i] = get_response_buffer(i);
 		  }
-		  modbus_setup_rx(12);
+		  modbus_set_rx(12);
 	  }
     /* USER CODE BEGIN 3 */
   }
