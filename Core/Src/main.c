@@ -41,6 +41,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
 
@@ -52,12 +53,18 @@ UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
-static uint16_t holding_register_database[50] = {
+uint32_t raw_data[8];
+
+uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		10,		// SLAVE_ID
-		0xFFFF, // TBD
-		0xFFFF, // TBD
-		0xFFFF, // TBD
-		0xFFFF, // TBD
+		0xFFFF, // ADC 0
+		0xFFFF, // ADC 1
+		0xFFFF, // ADC 2
+		0xFFFF, // ADC 3
+		0xFFFF, // ADC 4
+		0xFFFF, // ADC 5
+		0xFFFF, // ADC 6
+		0xFFFF, // ADC 7
 };
 
 /* USER CODE END PV */
@@ -65,6 +72,7 @@ static uint16_t holding_register_database[50] = {
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
@@ -77,6 +85,13 @@ static void MX_USART1_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+	for(uint8_t i = 0; i < 8; i++)
+	{
+		holding_register_database[i + 1] = (uint16_t)raw_data[i];
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -108,45 +123,54 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC1_Init();
   MX_I2C1_Init();
   MX_SPI1_Init();
   MX_TIM1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  modbus_set_rx(12);
+  modbus_set_rx(255);
+  HAL_ADC_Start_DMA(&hadc1, raw_data, 8);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
 	  if(modbus_rx())
 	  {
-		  if(get_rx_buffer(0) == holding_register_database[0])
+		  int8_t status = 0;
+		  if(get_rx_buffer(0) == holding_register_database[0]) // Check Slave ID
 		  {
 			  switch(get_rx_buffer(1))
 			  {
 				  case 0x03:
 				  {
 					  // Return holding registers
+					  status = return_holding_registers();
 					  break;
 				  }
 				  case 0x10:
 				  {
 					  // Write holding registers
+					  status = edit_multiple_registers();
 					  break;
 				  }
 			  }
+			  if(status != 0)
+			  {
+				  // log error in a queue
+			  }
 		  }
-		  uint16_t buffer[12];
-		  for(uint8_t i = 0; i < 12; i++)
+		  status = modbus_set_rx(255); // may be able to set size to 12
+		  if(status != 0)
 		  {
-			  buffer[i] = get_response_buffer(i);
+			  // log error in a queue
 		  }
-		  modbus_set_rx(12);
 	  }
+    /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -216,12 +240,11 @@ static void MX_ADC1_Init(void)
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
   hadc1.Init.LowPowerAutoPowerOff = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.NbrOfConversion = 0;
-  hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.DMAContinuousRequests = ENABLE;
   hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
   hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_1CYCLE_5;
   hadc1.Init.OversamplingMode = DISABLE;
@@ -514,6 +537,22 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
 

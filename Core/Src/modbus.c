@@ -27,6 +27,7 @@ volatile uint8_t rx_int = 0;
 volatile uint8_t tx_int = 0;
 
 extern UART_HandleTypeDef huart1;
+extern uint16_t holding_register_database[];
 
 #define high_byte(value) ((value >> 8) & 0xFF)
 #define low_byte(value) (value & 0xFF)
@@ -107,6 +108,13 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	tx_int = 1;
 }
 
+
+
+
+
+
+// Modbus Buffer Functions --------------------------------------------------------------------
+
 /**
 	Modbus get the data received through modbus
 */
@@ -133,6 +141,30 @@ uint8_t get_rx_buffer(uint8_t index)
 }
 
 /**
+	Place data in transmit buffer
+*/
+int8_t set_tx_buffer(uint8_t index, uint16_t value)
+{
+	if (index < TX_BUFFER_SIZE)
+	{
+		tx_buffer[index] = value;
+		return MB_SUCCESS;
+	}
+	else
+	{
+		return RANGE_ERROR;
+	}
+}
+
+
+
+
+
+
+
+// Modbus Master Functions --------------------------------------------------------------------
+
+/**
 	Modbus Master reading holding registers
 */
 int8_t read_holding_registers(uint16_t read_address, uint16_t read_quantity, uint8_t id)
@@ -142,20 +174,15 @@ int8_t read_holding_registers(uint16_t read_address, uint16_t read_quantity, uin
 		return MB_MEMORY_ERROR;
 	}
 	uint8_t index = 0;
-	// Append Modbus ID
-	modbus_tx_buffer[index++] = id;
-	// Append Function
-	modbus_tx_buffer[index++] = 0x03;
+	modbus_tx_buffer[index++] = id; // Append Modbus ID
+
+	modbus_tx_buffer[index++] = 0x03; // Append Function Code
 	// Append the Read Address (high byte then low byte)
 	modbus_tx_buffer[index++] = high_byte(read_address);
 	modbus_tx_buffer[index++] = low_byte(read_address);
 	// Append the quantity of registers to be read (high byte then low byte)
 	modbus_tx_buffer[index++] = high_byte(read_quantity);
 	modbus_tx_buffer[index++] = low_byte(read_quantity);
-	// Append CRC (low byte then high byte)
-	uint16_t crc = crc_16(modbus_tx_buffer, index);
-	modbus_tx_buffer[index++] = low_byte(crc);
-	modbus_tx_buffer[index++] = high_byte(crc);
 
 	int8_t status = modbus_send(modbus_tx_buffer, index);
 	if(status != HAL_OK)
@@ -192,18 +219,12 @@ int8_t write_multiple_registers(uint16_t write_address, uint16_t write_quantity,
 	// Append the quantity of registers to be read (high byte then low byte)
 	modbus_tx_buffer[index++] = high_byte(write_quantity);
 	modbus_tx_buffer[index++] = low_byte(write_quantity);
-	modbus_tx_buffer[index++] = low_byte(write_quantity << 1);
 	// Append the tx_buffer (high byte then low byte
 	for(uint8_t i = 0; i < low_byte(write_quantity); i++)
 	{
 		modbus_tx_buffer[index++] = high_byte(tx_buffer[i]);
 		modbus_tx_buffer[index++] = low_byte(tx_buffer[i]);
 	}
-
-	// Append CRC (low byte then high byte)
-	uint16_t crc = crc_16(modbus_tx_buffer, index);
-	modbus_tx_buffer[index++] = low_byte(crc);
-	modbus_tx_buffer[index++] = high_byte(crc);
 
 	int8_t status = modbus_send(modbus_tx_buffer, index);
 	if(status != HAL_OK)
@@ -218,104 +239,6 @@ int8_t write_multiple_registers(uint16_t write_address, uint16_t write_quantity,
 		return status;
 	}
 	return modbus_mic(id, 0x10, rx_len);
-}
-
-/**
-	Place data in transmit buffer
-*/
-int8_t set_tx_buffer(uint8_t index, uint16_t value)
-{
-	if (index < TX_BUFFER_SIZE)
-	{
-		tx_buffer[index] = value;
-		return MB_SUCCESS;
-	}
-	else
-	{
-		return RANGE_ERROR;
-	}
-}
-
-/*
-	General Modbus send function
- */
-int8_t modbus_send(uint8_t *data, uint8_t size)
-{
-	int8_t status = HAL_OK;
-	status = HAL_UART_Transmit_IT(&huart1, data, size);
-	if(status != HAL_OK)
-	{
-		return status;
-	}
-	time = HAL_GetTick();
-	while(!tx_int && (HAL_GetTick()) - time < 100);
-	if(tx_int)
-	{
-		tx_int = 0;
-		return HAL_OK;
-	}
-	else
-	{
-		return HAL_TIMEOUT;
-	}
-}
-
-/*
-	Modbus Master wait for a response from a slave after a request
- */
-int8_t modbus_poll_for_response(uint8_t size, uint16_t *rx_len)
-{
-	int8_t status = HAL_OK;
-	status = HAL_UART_Receive_IT(&huart1, modbus_rx_buffer, size);
-	if(status != HAL_OK)
-	{
-		return status;
-	}
-	while(!rx_int && (HAL_GetTick()) - time < response_interval);
-	if(rx_int)
-	{
-		rx_int = 0;
-		return HAL_OK;
-	}
-	else
-	{
-		return HAL_TIMEOUT;
-	}
-}
-
-/*
-	Modbus Slave set chip in receive mode
- */
-int8_t modbus_set_rx(uint8_t size)
-{
-	return HAL_UARTEx_ReceiveToIdle_IT(&huart1, modbus_rx_buffer, size);
-	//return HAL_UART_Receive_IT(&huart1, modbus_rx_buffer, size);
-}
-
-/*
-	General Modbus check for reception function
- */
-uint8_t modbus_rx()
-{
-	if(rx_int)
-	{
-		rx_int = 0;
-		return 1;
-	}
-	return rx_int;
-}
-
-/*
-	Modbus Master set the timeout for how long a slave has to respond to a request
- */
-void set_response_interval(uint32_t delay)
-{
-	response_interval = delay;
-}
-
-uint32_t get_response_interval()
-{
-	return response_interval;
 }
 
 /*
@@ -353,12 +276,200 @@ int8_t modbus_mic(uint8_t id, uint8_t function_code, uint8_t size)
 }
 
 /*
+	Modbus Master wait for a response from a slave after a request
+ */
+int8_t modbus_poll_for_response(uint8_t size, uint16_t *rx_len)
+{
+	int8_t status = HAL_OK;
+	status = HAL_UART_Receive_IT(&huart1, modbus_rx_buffer, size);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+	while(!rx_int && (HAL_GetTick()) - time < response_interval);
+	if(rx_int)
+	{
+		rx_int = 0;
+		return HAL_OK;
+	}
+	else
+	{
+		return HAL_TIMEOUT;
+	}
+}
+
+/*
+	Modbus Master set the timeout for how long a slave has to respond to a request
+ */
+void set_response_interval(uint32_t delay)
+{
+	response_interval = delay;
+}
+
+uint32_t get_response_interval()
+{
+	return response_interval;
+}
+
+
+
+
+// Modbus Slave Functions ---------------------------------------------------------------------
+
+/*
+	Modbus Slave Return Multiple holding registers
+ */
+int8_t return_holding_registers()
+{
+	// Handle Error Checking
+	uint16_t first_register_address = (modbus_rx_buffer[2] << 8) | modbus_rx_buffer[3];
+
+	uint16_t num_registers = (modbus_rx_buffer[4] << 8) | modbus_rx_buffer[5];
+
+	if(num_registers > RX_BUFFER_SIZE || num_registers < 1) // 125 is the limit according to modbus protocol
+	{
+		return modbus_exception(MB_ILLEGAL_DATA_VALUE);
+	}
+
+	uint16_t last_register_address = first_register_address + (num_registers - 1);
+
+	if(last_register_address > NUM_HOLDING_REGISTERS)
+	{
+		return modbus_exception(MB_ILLEGAL_DATA_ADDRESS);
+	}
+
+	// Return register values
+
+	modbus_tx_buffer[0] = modbus_rx_buffer[0]; // Append Slave id
+	modbus_tx_buffer[1] = modbus_rx_buffer[1]; // Append Function Code
+	modbus_tx_buffer[2] = num_registers * 2; // Append number of bytes
+	uint8_t index = 3;
+
+	// Append the Register Values
+	for(uint8_t i = 0; i < num_registers; i++)
+	{
+		modbus_tx_buffer[index++] = high_byte(holding_register_database[first_register_address]);
+		modbus_tx_buffer[index++] = low_byte(holding_register_database[first_register_address]);
+		first_register_address++;
+	}
+
+	return modbus_send(modbus_tx_buffer, index);
+}
+
+/*
+	Modbus Slave Edit Multiple holding registers
+ */
+int8_t edit_multiple_registers()
+{
+	// Handle Error Checking
+	uint16_t first_register_address = (modbus_rx_buffer[2] << 8) | modbus_rx_buffer[3];
+
+	uint16_t num_registers = (modbus_rx_buffer[4] << 8) | modbus_rx_buffer[5];
+
+	if(num_registers > 125 || num_registers < 1) // 125 is the limit according to modbus protocol
+	{
+		return modbus_exception(MB_ILLEGAL_DATA_VALUE);
+	}
+
+	uint16_t last_register_address = first_register_address + (num_registers - 1);
+
+	if(last_register_address > NUM_HOLDING_REGISTERS)
+	{
+		return modbus_exception(MB_ILLEGAL_DATA_ADDRESS);
+	}
+
+	// Edit holding registers
+	modbus_tx_buffer[0] = modbus_rx_buffer[0]; // Append Slave id
+	modbus_tx_buffer[1] = modbus_rx_buffer[1]; // Append Function Code
+	modbus_tx_buffer[2] = num_registers * 2; // Append number of bytes
+	uint8_t index = 3;
+
+	for(uint8_t i = 0; i < num_registers; i++)
+	{
+		holding_register_database[first_register_address] = (modbus_rx_buffer[2 * i + 6] << 8) | modbus_rx_buffer[2 * i + 7];
+		modbus_tx_buffer[index++] = high_byte(holding_register_database[first_register_address]);
+		modbus_tx_buffer[index++] = low_byte(holding_register_database[first_register_address]);
+		first_register_address++;
+	}
+
+	return modbus_send(modbus_tx_buffer, index);
+}
+
+/*
+	Modbus Slave Exception handler
+ */
+int8_t modbus_exception(int8_t exception_code)
+{
+	modbus_tx_buffer[0] = modbus_rx_buffer[0];
+	modbus_tx_buffer[1] = modbus_rx_buffer[1] | 0x80;
+	modbus_tx_buffer[2] = exception_code;
+
+	return modbus_send(modbus_tx_buffer, 3);
+}
+
+
+
+
+// General Modbus Functions -------------------------------------------------------------------
+
+/*
+	General Modbus send function
+ */
+int8_t modbus_send(uint8_t *data, uint8_t size)
+{
+	// Append CRC (low byte then high byte)
+	uint16_t crc = crc_16(data, size);
+	data[size] = low_byte(crc);
+	data[size + 1] = high_byte(crc);
+
+	int8_t status = HAL_OK;
+	status = HAL_UART_Transmit_IT(&huart1, data, size + 2);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+	time = HAL_GetTick();
+	while(!tx_int && (HAL_GetTick()) - time < 100);
+	if(tx_int)
+	{
+		tx_int = 0;
+		return HAL_OK;
+	}
+	else
+	{
+		return HAL_TIMEOUT;
+	}
+}
+
+/*
+	General Modbus check for reception function
+ */
+uint8_t modbus_rx()
+{
+	if(rx_int)
+	{
+		rx_int = 0;
+		return 1;
+	}
+	return rx_int;
+}
+
+/*
+	General Modbus set chip in receive mode
+ */
+int8_t modbus_set_rx(uint8_t size)
+{
+	return HAL_UARTEx_ReceiveToIdle_IT(&huart1, modbus_rx_buffer, size);
+	//return HAL_UART_Receive_IT(&huart1, modbus_rx_buffer, size);
+}
+
+/*
 	General Modbus rx_buffer allocation function
  */
 void store_rx_buffer()
 {
 	// Store the messages data in the rx_buffer
-	for(uint8_t i = 0; i < (modbus_rx_buffer[2] >> 1); i++)
+	for(uint8_t i = 0; i < (modbus_rx_buffer[2] /*>> 1*/); i++)
 	{
 		if(i < RX_BUFFER_SIZE)
 		{
@@ -367,6 +478,9 @@ void store_rx_buffer()
 		// rx_buffer_len = i;
 	}
 }
+
+
+
 
 
 
