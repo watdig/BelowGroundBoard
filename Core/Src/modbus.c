@@ -402,7 +402,7 @@ int8_t modbus_exception(int8_t exception_code)
 {
 	modbus_tx_buffer[0] = modbus_rx_buffer[0];
 	modbus_tx_buffer[1] = modbus_rx_buffer[1] | 0x80;
-	modbus_tx_buffer[2] = exception_code;
+	modbus_tx_buffer[2] = exception_code - 3; // Subtract 3 to match the modbus defined error code value
 
 	return modbus_send(modbus_tx_buffer, 3);
 }
