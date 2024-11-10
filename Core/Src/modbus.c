@@ -378,6 +378,15 @@ int8_t edit_multiple_registers()
 		return modbus_exception(MB_ILLEGAL_DATA_ADDRESS);
 	}
 
+	if((last_register_address <= 10 && last_register_address >= 2) 		||
+		(first_register_address <= 10 && first_register_address >= 2) 	||
+		(first_register_address < 2 && last_register_address > 10))
+	{
+		// Ensure that ADC values are restricted to read-only
+		return modbus_exception(MB_ILLEGAL_FUNCTION);
+	}
+
+
 	// Edit holding registers
 	modbus_tx_buffer[0] = modbus_rx_buffer[0]; // Append Slave id
 	modbus_tx_buffer[1] = modbus_rx_buffer[1]; // Append Function Code

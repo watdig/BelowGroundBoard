@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "modbus.h"
+#include "bno08x_i2c.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -44,19 +45,24 @@ ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_rx;
 
 SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim14;
 
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
+volatile uint8_t BNO_Ready;
+
 uint32_t raw_data[8];
 
 uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		10,		// SLAVE_ID
+		3, 		// BAUD_RATE
 		0xFFFF, // ADC 0
 		0xFFFF, // ADC 1
 		0xFFFF, // ADC 2
@@ -65,6 +71,7 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, // ADC 5
 		0xFFFF, // ADC 6
 		0xFFFF, // ADC 7
+		0xFFFF, // ADC 8
 };
 
 /* USER CODE END PV */
@@ -78,6 +85,7 @@ static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_TIM14_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -85,9 +93,14 @@ static void MX_USART1_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	BNO_Ready = 1;
+}
+
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-	for(uint8_t i = 0; i < 8; i++)
+	for(uint8_t i = 0; i < 9; i++)
 	{
 		holding_register_database[i + 1] = (uint16_t)raw_data[i];
 	}
@@ -129,9 +142,10 @@ int main(void)
   MX_SPI1_Init();
   MX_TIM1_Init();
   MX_USART1_UART_Init();
+  MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
   modbus_set_rx(255);
-  HAL_ADC_Start_DMA(&hadc1, raw_data, 8);
+  HAL_ADC_Start_DMA(&hadc1, raw_data, 9);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -348,7 +362,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00402D41;
+  hi2c1.Init.Timing = 0x00100412;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -493,6 +507,37 @@ static void MX_TIM1_Init(void)
 }
 
 /**
+  * @brief TIM14 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM14_Init(void)
+{
+
+  /* USER CODE BEGIN TIM14_Init 0 */
+
+  /* USER CODE END TIM14_Init 0 */
+
+  /* USER CODE BEGIN TIM14_Init 1 */
+
+  /* USER CODE END TIM14_Init 1 */
+  htim14.Instance = TIM14;
+  htim14.Init.Prescaler = 12 - 1 ;
+  htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim14.Init.Period = 65535;
+  htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM14_Init 2 */
+
+  /* USER CODE END TIM14_Init 2 */
+
+}
+
+/**
   * @brief USART1 Initialization Function
   * @param None
   * @retval None
@@ -553,6 +598,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+  /* DMA1_Channel2_3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
 
 }
 
