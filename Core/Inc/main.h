@@ -41,7 +41,7 @@ extern "C" {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-#define NUM_HOLDING_REGISTERS 50
+#define NUM_HOLDING_REGISTERS 55
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

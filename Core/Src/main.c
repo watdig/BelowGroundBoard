@@ -56,6 +56,7 @@ UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
+// BNO08X Variables
 volatile uint8_t BNO_Ready;
 
 uint32_t raw_data[8];
@@ -63,6 +64,7 @@ uint32_t raw_data[8];
 uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		10,		// SLAVE_ID
 		3, 		// BAUD_RATE
+		0, 		// AUTOPILOT
 		0xFFFF, // ADC 0
 		0xFFFF, // ADC 1
 		0xFFFF, // ADC 2
@@ -72,6 +74,27 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, // ADC 6
 		0xFFFF, // ADC 7
 		0xFFFF, // ADC 8
+		0xFFFF, 0xFFFF, // Accelerometer X
+		0xFFFF, 0xFFFF, // Accelerometer Y
+		0xFFFF, 0xFFFF, // Accelerometer Z
+		0xFFFF, 0xFFFF, // Gyroscope X
+		0xFFFF, 0xFFFF, // Gyroscope Y
+		0xFFFF, 0xFFFF, // Gyroscope Z
+		0xFFFF, 0xFFFF, // Magnetometer X
+		0xFFFF, 0xFFFF, // Magnetometer Y
+		0xFFFF, 0xFFFF, // Magnetometer Z
+		0xFFFF, 0xFFFF, // Rotation Vector I
+		0xFFFF, 0xFFFF, // Rotation Vector J
+		0xFFFF, 0xFFFF, // Rotation Vector K
+		0xFFFF, 0xFFFF, // Rotation Vector Real
+		0xFFFF, 0xFFFF, // Rotation Vector Accuracy
+		0xFFFF, 0xFFFF, // Game Rotation Vector I
+		0xFFFF, 0xFFFF, // Game Rotation Vector J
+		0xFFFF, 0xFFFF, // Game Rotation Vector K
+		0xFFFF, 0xFFFF, // Game Rotation Vector Real
+		0xFFFF, // Actuator A Target
+		0xFFFF, // Actuator B Target
+		0xFFFF, // Actuator C Target
 };
 
 /* USER CODE END PV */
@@ -145,7 +168,14 @@ int main(void)
   MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
   modbus_set_rx(255);
-  HAL_ADC_Start_DMA(&hadc1, raw_data, 9);
+  if(HAL_ADC_Start_DMA(&hadc1, raw_data, 9) != HAL_OK)
+  {
+	  Error_Handler();
+  }
+  if(BNO_Init() != HAL_OK)
+  {
+	  Error_Handler();
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -182,6 +212,10 @@ int main(void)
 		  {
 			  // log error in a queue
 		  }
+	  }
+	  if(BNO_dataAvailable() == HAL_OK)
+	  {
+		  collect_sensor_data(&holding_register_database[12]);
 	  }
     /* USER CODE END WHILE */
 

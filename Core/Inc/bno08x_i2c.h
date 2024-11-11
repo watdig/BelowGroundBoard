@@ -271,16 +271,16 @@ extern "C" {
 #define FRS_RECORDID_SYSTEM_ORIENTATION						0x2D3E
 
 // FRS write status values
-#define FRS_WRITE_STATUS_RECEIVED									0
-#define FRS_WRITE_STATUS_UNRECOGNIZED_FRS_TYPE		1
-#define FRS_WRITE_STATUS_BUSY											2
-#define FRS_WRITE_STATUS_WRITE_COMPLETED					3
-#define FRS_WRITE_STATUS_READY										4
-#define FRS_WRITE_STATUS_FAILED										5
+#define FRS_WRITE_STATUS_RECEIVED								0
+#define FRS_WRITE_STATUS_UNRECOGNIZED_FRS_TYPE					1
+#define FRS_WRITE_STATUS_BUSY									2
+#define FRS_WRITE_STATUS_WRITE_COMPLETED						3
+#define FRS_WRITE_STATUS_READY									4
+#define FRS_WRITE_STATUS_FAILED									5
 #define FRS_WRITE_STATUS_NOT_READY								6 // data received when not in write mode
-#define FRS_WRITE_STATUS_INVALID_LENGTH						7
+#define FRS_WRITE_STATUS_INVALID_LENGTH							7
 #define FRS_WRITE_STATUS_RECORD_VALID							8
-#define FRS_WRITE_STATUS_INVALID_RECORD						9
+#define FRS_WRITE_STATUS_INVALID_RECORD							9
 #define FRS_WRITE_STATUS_DEVICE_ERROR							10
 #define FRS_WRITE_STATUS_READ_ONLY								11
 
@@ -850,7 +850,7 @@ typedef struct __attribute__((packed)) {
 
 extern BNO_SensorValue_t sensorData;
 extern BNO_RollPitchYaw_t rpy;
-// Initialize the sesnor
+// Initialize the sensor
 // During reset or power-on sequence, the bootloader first checks the status of the BOOTN pin.
 // If the pin is pulled low during reset or poweron, the BNO08X will enter the bootloader mode.
 // If the BOOTN pin is pulled high, then the bootloader starts the application
@@ -1143,6 +1143,9 @@ BNO_DeadReckoningPose_t getDeadReckoningPose(void);
 #ifdef WHEEL_ENCODER
 BNO_WheelEncoder_t getWheelEncoder(void);
 #endif
+
+void collect_sensor_data(uint16_t* database);
+
 
 #ifdef __cplusplus
 }

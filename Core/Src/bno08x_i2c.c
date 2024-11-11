@@ -13,6 +13,13 @@
 #include "main.h"
 
 
+// Union for collecting sensor data
+union data
+{
+    uint16_t i[2];  // integer
+    float f;        // float
+};
+
 //Global Variables
 
 // The interrupt variable
@@ -26,7 +33,7 @@ extern I2C_HandleTypeDef hi2c1;
 
 //extern volatile uint8_t i2c1_transfer_complete;
 //A monotonically incrementing uint8_t that rolls over. It is used to detect missing commands and to synchronize responses
-static uint8_t commandSequenceNumber = 0;
+//static uint8_t commandSequenceNumber = 0;
 // Similar with  the above var
 static uint8_t cmdSeqNo = 0;
 // The data array for read and write operations
@@ -1419,7 +1426,7 @@ BNO_Feature_t BNO_getFeature(const uint8_t sensorID)
 	return ret;
 }
 
-// Enable features an set report time in mili seconds
+// Enable features and set report time in microseconds seconds
 HAL_StatusTypeDef BNO_setFeature(const uint8_t sensorID, const uint32_t microsBetweenReports, const uint32_t specificConfig)
 {
 	resetHeader(REPORT_SET_FEATURE_COMMAND); // Set feature command. Reference page 55
@@ -1692,4 +1699,46 @@ BNO_WheelEncoder_t getWheelEncoder(void)
 	return sensorData.SenVal.WheelEncoder;
 }
 #endif
+
+void collect_sensor_data(uint16_t* database)
+{
+	union data value[21];
+
+	// collected the float values in the union
+	value[0].f = rpy.Roll;
+	value[1].f = rpy.Pitch;
+	value[2].f = rpy.Yaw;
+
+	value[3].f = sensorData.SenVal.Accelerometer.X;
+	value[4].f = sensorData.SenVal.Accelerometer.Y;
+	value[5].f = sensorData.SenVal.Accelerometer.Z;
+
+	value[6].f = sensorData.SenVal.Gyroscope.X;
+	value[7].f = sensorData.SenVal.Gyroscope.Y;
+	value[8].f = sensorData.SenVal.Gyroscope.Z;
+
+	value[9].f = sensorData.SenVal.MagneticField.X;
+	value[10].f = sensorData.SenVal.MagneticField.Y;
+	value[11].f = sensorData.SenVal.MagneticField.Z;
+
+	value[12].f = sensorData.SenVal.RotationVector.I;
+	value[13].f = sensorData.SenVal.RotationVector.J;
+	value[14].f = sensorData.SenVal.RotationVector.K;
+	value[15].f = sensorData.SenVal.RotationVector.Real;
+	value[16].f = sensorData.SenVal.RotationVector.Accuracy;
+
+	value[17].f = sensorData.SenVal.GameRotationVector.I;
+	value[18].f = sensorData.SenVal.GameRotationVector.J;
+	value[19].f = sensorData.SenVal.GameRotationVector.K;
+	value[20].f = sensorData.SenVal.GameRotationVector.Real;
+
+	// input all the data into the database
+	for(uint8_t i = 0; i < 21; i++)
+	{
+		for(uint8_t j = 0; j < 2; j++)
+		{
+			database[i] = value[i].i[j];
+		}
+	}
+}
 
