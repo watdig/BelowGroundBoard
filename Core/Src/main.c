@@ -22,7 +22,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "modbus.h"
-#include "bno08x_i2c.h"
+#include "bno055_i2c.h"
+#include "lin_actuator.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -56,15 +57,16 @@ UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
-// BNO08X Variables
-volatile uint8_t BNO_Ready;
+pid_t pid_constraints;
+uint16_t pin_map[NUM_ACTUATORS];
 
-uint32_t raw_data[8];
+uint32_t raw_data[9];
 
 uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
-		10,		// SLAVE_ID
-		3, 		// BAUD_RATE
-		0, 		// AUTOPILOT
+		0x0001,	// SLAVE_ID
+		0x0003, // BAUD_RATE
+		0x0000, // AUTOPILOT
+
 		0xFFFF, // ADC 0
 		0xFFFF, // ADC 1
 		0xFFFF, // ADC 2
@@ -74,24 +76,31 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, // ADC 6
 		0xFFFF, // ADC 7
 		0xFFFF, // ADC 8
+
 		0xFFFF, 0xFFFF, // Accelerometer X
 		0xFFFF, 0xFFFF, // Accelerometer Y
 		0xFFFF, 0xFFFF, // Accelerometer Z
-		0xFFFF, 0xFFFF, // Gyroscope X
-		0xFFFF, 0xFFFF, // Gyroscope Y
-		0xFFFF, 0xFFFF, // Gyroscope Z
 		0xFFFF, 0xFFFF, // Magnetometer X
 		0xFFFF, 0xFFFF, // Magnetometer Y
 		0xFFFF, 0xFFFF, // Magnetometer Z
-		0xFFFF, 0xFFFF, // Rotation Vector I
-		0xFFFF, 0xFFFF, // Rotation Vector J
-		0xFFFF, 0xFFFF, // Rotation Vector K
-		0xFFFF, 0xFFFF, // Rotation Vector Real
-		0xFFFF, 0xFFFF, // Rotation Vector Accuracy
-		0xFFFF, 0xFFFF, // Game Rotation Vector I
-		0xFFFF, 0xFFFF, // Game Rotation Vector J
-		0xFFFF, 0xFFFF, // Game Rotation Vector K
-		0xFFFF, 0xFFFF, // Game Rotation Vector Real
+		0xFFFF, 0xFFFF, // Gyroscope X
+		0xFFFF, 0xFFFF, // Gyroscope Y
+		0xFFFF, 0xFFFF, // Gyroscope Z
+
+		0xFFFF, 0xFFFF, // Euler Heading
+		0xFFFF, 0xFFFF, // Euler Roll
+		0xFFFF, 0xFFFF, // Euler Pitch
+		0xFFFF, 0xFFFF, // Linear Acceleration X
+		0xFFFF, 0xFFFF, // Linear Acceleration Y
+		0xFFFF, 0xFFFF, // Linear Acceleration Z
+		0xFFFF, 0xFFFF, // Gravity X
+		0xFFFF, 0xFFFF, // Gravity Y
+		0xFFFF, 0xFFFF, // Gravity Z
+		0xFFFF, 0xFFFF, // Quarternion X
+		0xFFFF, 0xFFFF, // Quarternion Y
+		0xFFFF, 0xFFFF, // Quarternion Z
+		0xFFFF, 0xFFFF, // Quarternion W
+
 		0xFFFF, // Actuator A Target
 		0xFFFF, // Actuator B Target
 		0xFFFF, // Actuator C Target
@@ -118,14 +127,14 @@ static void MX_TIM14_Init(void);
 
 void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
-	BNO_Ready = 1;
+	// will be used for when i2c is designed with interrupts
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
 	for(uint8_t i = 0; i < 9; i++)
 	{
-		holding_register_database[i + 1] = (uint16_t)raw_data[i];
+		holding_register_database[i + 3] = (uint16_t)raw_data[i];
 	}
 }
 /* USER CODE END 0 */
@@ -167,19 +176,57 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
-  modbus_set_rx(255);
+
+  // Initialize the pin mapping table
+  pin_map[0] = Actuator_A_EN_Pin;
+  pin_map[1] = Actuator_B_EN_Pin;
+  pin_map[2] = Actuator_C_EN_Pin;
+
+  // Initialize the PID constraints to defaults
+  pid_constraints.Kp = 1;              // Proportional gain constant
+  pid_constraints.Ki = 0.1;            // Integral gain constant
+  pid_constraints.Kd = 5;              // Derivative gain constant
+  pid_constraints.Kaw = 0.1;           // Anti-windup gain constant
+  pid_constraints.T_C = 1;             // Time constant for derivative filtering
+  pid_constraints.T = 100;             // Time step
+  pid_constraints.max = 100;           // Max command
+  pid_constraints.min = 0;             // Min command
+  pid_constraints.max_rate = 40;       // Max rate of change of the command
+  pid_constraints.integral = 0;        // Integral term
+  pid_constraints.err_prev = 0;        // Previous error
+  pid_constraints.deriv_prev = 0;      // Previous derivative
+  pid_constraints.command_sat_prev = 0;// Previous saturated command
+  pid_constraints.command_prev = 0;    // Previous command
+
+  if(modbus_set_rx(255) != HAL_OK)
+  {
+	  Error_Handler();
+  }
+
   if(HAL_ADC_Start_DMA(&hadc1, raw_data, 9) != HAL_OK)
   {
 	  Error_Handler();
   }
-  if(BNO_Init() != HAL_OK)
-  {
-	  Error_Handler();
-  }
+
+//  bno055_assignI2C(&hi2c1);
+//  bno055_setup();
+//  bno055_setOperationModeNDOF();
+
+  TIM1->CCR1 = 0;
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  /*
+   * target_actuator
+   * 0: Actuator A
+   * 1: Actuator B
+   * 2: Actuator C
+   */
+  uint8_t target_actuator = 0;
+
   while (1)
   {
 	  if(modbus_rx())
@@ -205,18 +252,33 @@ int main(void)
 			  if(status != 0)
 			  {
 				  // log error in a queue
+				  Error_Handler();
 			  }
 		  }
 		  status = modbus_set_rx(255); // may be able to set size to 12
 		  if(status != 0)
 		  {
 			  // log error in a queue
+			  Error_Handler();
 		  }
 	  }
-	  if(BNO_dataAvailable() == HAL_OK)
+
+//	  bno055_vector_t v1 = bno055_getVectorEuler();
+//	  bno055_vector_t v2 = bno055_getVectorAccelerometer();
+//	  bno055_vector_t v3 = bno055_getVectorGyroscope();
+
+	  // 15 adc values relates to x cm of the linear actuator
+	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
+		 holding_register_database[9 + target_actuator] <= holding_register_database[56 + target_actuator] + ACTUATOR_TOLERANCE)
 	  {
-		  collect_sensor_data(&holding_register_database[12]);
+		  actuate(target_actuator, holding_register_database[9 + target_actuator], holding_register_database[56 + target_actuator]);
 	  }
+	  else
+	  {
+		  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
+	  }
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -488,12 +550,12 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 12-1;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 65535;
+  htim1.Init.Period = 100-1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
-  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
@@ -587,7 +649,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 9600;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -657,7 +719,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, SS_C_Pin|SS_A_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, Actuator_C_EN_Pin|Actuator_B_EN_Pin|Actuator_A_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : Encoder_Pulse_B_Pin Encoder_Pulse_A_Pin */
   GPIO_InitStruct.Pin = Encoder_Pulse_B_Pin|Encoder_Pulse_A_Pin;
@@ -665,18 +727,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SS_C_Pin SS_A_Pin */
-  GPIO_InitStruct.Pin = SS_C_Pin|SS_A_Pin;
+  /*Configure GPIO pins : Actuator_C_EN_Pin Actuator_B_EN_Pin Actuator_A_EN_Pin */
+  GPIO_InitStruct.Pin = Actuator_C_EN_Pin|Actuator_B_EN_Pin|Actuator_A_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SS_B_Pin */
-  GPIO_InitStruct.Pin = SS_B_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(SS_B_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */

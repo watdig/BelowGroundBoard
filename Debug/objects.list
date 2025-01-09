@@ -1,4 +1,5 @@
-"./Core/Src/bno08x_i2c.o"
+"./Core/Src/bno055.o"
+"./Core/Src/lin_actuator.o"
 "./Core/Src/main.o"
 "./Core/Src/modbus.o"
 "./Core/Src/stm32c0xx_hal_msp.o"

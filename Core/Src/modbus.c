@@ -324,6 +324,7 @@ int8_t return_holding_registers()
 	// Handle Error Checking
 	uint16_t first_register_address = (modbus_rx_buffer[2] << 8) | modbus_rx_buffer[3];
 
+	// Get the number of registers requested by the master
 	uint16_t num_registers = (modbus_rx_buffer[4] << 8) | modbus_rx_buffer[5];
 
 	if(num_registers > RX_BUFFER_SIZE || num_registers < 1) // 125 is the limit according to modbus protocol
@@ -348,9 +349,8 @@ int8_t return_holding_registers()
 	// Append the Register Values
 	for(uint8_t i = 0; i < num_registers; i++)
 	{
-		modbus_tx_buffer[index++] = high_byte(holding_register_database[first_register_address]);
-		modbus_tx_buffer[index++] = low_byte(holding_register_database[first_register_address]);
-		first_register_address++;
+		modbus_tx_buffer[index++] = high_byte(holding_register_database[first_register_address + i]);
+		modbus_tx_buffer[index++] = low_byte(holding_register_database[first_register_address + i]);
 	}
 
 	return modbus_send(modbus_tx_buffer, index);
@@ -395,10 +395,9 @@ int8_t edit_multiple_registers()
 
 	for(uint8_t i = 0; i < num_registers; i++)
 	{
-		holding_register_database[first_register_address] = (modbus_rx_buffer[2 * i + 6] << 8) | modbus_rx_buffer[2 * i + 7];
-		modbus_tx_buffer[index++] = high_byte(holding_register_database[first_register_address]);
-		modbus_tx_buffer[index++] = low_byte(holding_register_database[first_register_address]);
-		first_register_address++;
+		holding_register_database[first_register_address + i] = (modbus_rx_buffer[2 * i + 6] << 8) | modbus_rx_buffer[2 * i + 7];
+		modbus_tx_buffer[index++] = high_byte(holding_register_database[first_register_address + i]);
+		modbus_tx_buffer[index++] = low_byte(holding_register_database[first_register_address + i]);
 	}
 
 	return modbus_send(modbus_tx_buffer, index);
@@ -438,7 +437,7 @@ int8_t modbus_send(uint8_t *data, uint8_t size)
 		return status;
 	}
 	time = HAL_GetTick();
-	while(!tx_int && (HAL_GetTick()) - time < 100);
+	while(!tx_int && ((HAL_GetTick()) - time < 100));
 	if(tx_int)
 	{
 		tx_int = 0;

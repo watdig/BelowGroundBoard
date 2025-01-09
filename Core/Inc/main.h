@@ -41,7 +41,11 @@ extern "C" {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-#define NUM_HOLDING_REGISTERS 55
+#define NUM_HOLDING_REGISTERS 59
+#define NUM_ACTUATORS 3
+#define ACTUATOR_TOLERANCE 15 // TODO: relate this adc value to mm with some equation
+#define ACTUATOR_TRANSIENT_DELAY 150 // TODO: figure out a safe value for this
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -77,16 +81,18 @@ void Error_Handler(void);
 #define Actuator_B_Pos_GPIO_Port GPIOA
 #define Actuator_C_Pos_Pin GPIO_PIN_8
 #define Actuator_C_Pos_GPIO_Port GPIOA
+#define Actuator_PWM_Pin GPIO_PIN_15
+#define Actuator_PWM_GPIO_Port GPIOA
 #define Encoder_Pulse_B_Pin GPIO_PIN_1
 #define Encoder_Pulse_B_GPIO_Port GPIOD
 #define Encoder_Pulse_A_Pin GPIO_PIN_2
 #define Encoder_Pulse_A_GPIO_Port GPIOD
-#define SS_C_Pin GPIO_PIN_7
-#define SS_C_GPIO_Port GPIOB
-#define SS_B_Pin GPIO_PIN_8
-#define SS_B_GPIO_Port GPIOB
-#define SS_A_Pin GPIO_PIN_9
-#define SS_A_GPIO_Port GPIOB
+#define Actuator_C_EN_Pin GPIO_PIN_7
+#define Actuator_C_EN_GPIO_Port GPIOB
+#define Actuator_B_EN_Pin GPIO_PIN_8
+#define Actuator_B_EN_GPIO_Port GPIOB
+#define Actuator_A_EN_Pin GPIO_PIN_9
+#define Actuator_A_EN_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
