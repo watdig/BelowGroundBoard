@@ -8,7 +8,7 @@
  *      where the code was found and used for this stm32 application
  */
 
-
+#include "main.h"
 #include "bno055.h"
 #include <string.h>
 
@@ -18,6 +18,8 @@ uint16_t angularRateScale = 16;
 uint16_t eulerScale = 16;
 uint16_t magScale = 16;
 uint16_t quaScale = (1<<14);    // 2^14
+
+extern uint16_t holding_register_database[NUM_HOLDING_REGISTERS];
 
 void bno055_setPage(uint8_t page) { bno055_writeData(BNO055_PAGE_ID, page); }
 
@@ -215,6 +217,7 @@ bno055_vector_t bno055_getVector(uint8_t vec)
 	  bno055_readData(vec, buffer, 6);
   }
 
+
   float scale = 1;
 
   if (vec == BNO055_VECTOR_MAGNETOMETER)
@@ -254,6 +257,23 @@ bno055_vector_t bno055_getVector(uint8_t vec)
   }
 
   return xyz;
+}
+
+void bno055_get_all_values()
+{
+	uint8_t buffer[44];    // Quaternion need 8 bytes
+	bno055_readData(BNO055_VECTOR_ACCELEROMETER, buffer, 6);
+	bno055_readData(BNO055_VECTOR_MAGNETOMETER, &buffer[6], 6);
+	bno055_readData(BNO055_VECTOR_GYROSCOPE, &buffer[6*2], 6);
+	bno055_readData(BNO055_VECTOR_EULER, &buffer[6*3], 6);
+	bno055_readData(BNO055_VECTOR_LINEARACCEL, &buffer[6*4], 6);
+	bno055_readData(BNO055_VECTOR_GRAVITY, &buffer[6*5], 6);
+	bno055_readData(BNO055_VECTOR_QUATERNION, &buffer[6*6], 8);
+
+	for(uint8_t i = 0; i < 22; i++)
+	{
+		holding_register_database[12 + i] = (buffer[2*i + 1] << 8) | buffer[2*i];
+	}
 }
 
 bno055_vector_t bno055_getVectorAccelerometer()

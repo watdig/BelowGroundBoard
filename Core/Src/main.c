@@ -24,6 +24,7 @@
 #include "modbus.h"
 #include "bno055_i2c.h"
 #include "lin_actuator.h"
+#include "error_codes.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -78,33 +79,39 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, // ADC 7
 		0xFFFF, // ADC 8
 
-		0xFFFF, 0xFFFF, // Accelerometer X
-		0xFFFF, 0xFFFF, // Accelerometer Y
-		0xFFFF, 0xFFFF, // Accelerometer Z
-		0xFFFF, 0xFFFF, // Magnetometer X
-		0xFFFF, 0xFFFF, // Magnetometer Y
-		0xFFFF, 0xFFFF, // Magnetometer Z
-		0xFFFF, 0xFFFF, // Gyroscope X
-		0xFFFF, 0xFFFF, // Gyroscope Y
-		0xFFFF, 0xFFFF, // Gyroscope Z
+		0xFFFF, // Accelerometer X
+		0xFFFF, // Accelerometer Y
+		0xFFFF, // Accelerometer Z
+		0xFFFF, // Magnetometer X
+		0xFFFF, // Magnetometer Y
+		0xFFFF, // Magnetometer Z
+		0xFFFF, // Gyroscope X
+		0xFFFF, // Gyroscope Y
+		0xFFFF, // Gyroscope Z
 
-		0xFFFF, 0xFFFF, // Euler Heading
-		0xFFFF, 0xFFFF, // Euler Roll
-		0xFFFF, 0xFFFF, // Euler Pitch
-		0xFFFF, 0xFFFF, // Linear Acceleration X
-		0xFFFF, 0xFFFF, // Linear Acceleration Y
-		0xFFFF, 0xFFFF, // Linear Acceleration Z
-		0xFFFF, 0xFFFF, // Gravity X
-		0xFFFF, 0xFFFF, // Gravity Y
-		0xFFFF, 0xFFFF, // Gravity Z
-		0xFFFF, 0xFFFF, // Quarternion X
-		0xFFFF, 0xFFFF, // Quarternion Y
-		0xFFFF, 0xFFFF, // Quarternion Z
-		0xFFFF, 0xFFFF, // Quarternion W
+		0xFFFF, // Euler Heading
+		0xFFFF, // Euler Roll
+		0xFFFF, // Euler Pitch
+		0xFFFF, // Linear Acceleration X
+		0xFFFF, // Linear Acceleration Y
+		0xFFFF, // Linear Acceleration Z
+		0xFFFF, // Gravity X
+		0xFFFF, // Gravity Y
+		0xFFFF, // Gravity Z
+		0xFFFF, // Quarternion X
+		0xFFFF, // Quarternion Y
+		0xFFFF, // Quarternion Z
+		0xFFFF, // Quarternion W
 
 		0xFFFF, // Actuator A Target
 		0xFFFF, // Actuator B Target
 		0xFFFF, // Actuator C Target
+		0xFFFF, 0xFFFF, // Proportional Gain
+		0xFFFF, 0xFFFF, // Integral Gain
+		0xFFFF, 0xFFFF, // Derivative Gain
+		0xFFFF, 0xFFFF, // Time for Derivative Filtering
+		0xFFFF, 0xFFFF, // Time Step
+		0xFFFF, 0xFFFF, // Maximum Rate of Change
 };
 
 /* USER CODE END PV */
@@ -249,11 +256,28 @@ int main(void)
 					  status = edit_multiple_registers();
 					  break;
 				  }
+				  default:
+				  {
+					  status = modbus_exception(MB_ILLEGAL_FUNCTION);
+					  break;
+				  }
 			  }
 			  if(status != 0)
 			  {
 				  // log error in a queue
-				  //Error_Handler();
+			  }
+		  }
+		  // Special case where you retrieve the modbus ID
+		  else if((get_rx_buffer(0) == 0xFF) && // modbus_id = 0xFF = 255
+			(get_rx_buffer(1) == 0x03) && // Function code = read_holding_registers
+			(((get_rx_buffer(2) << 8) | get_rx_buffer(3)) == 0x00) && // Address to read = 0
+			(((get_rx_buffer(4) << 8) | get_rx_buffer(5)) == 1)) // # of registers to read = 1
+		  {
+
+			  status = return_holding_registers();
+			  if(status != 0)
+			  {
+				  // log error in a queue
 			  }
 		  }
 		  status = modbus_set_rx();
@@ -264,9 +288,7 @@ int main(void)
 		  }
 	  }
 
-//	  bno055_vector_t v1 = bno055_getVectorEuler();
-//	  bno055_vector_t v2 = bno055_getVectorAccelerometer();
-//	  bno055_vector_t v3 = bno055_getVectorGyroscope();
+//	  bno055_get_all_values();
 
 	  // 15 adc values relates to x cm of the linear actuator
 //	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&

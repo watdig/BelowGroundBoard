@@ -56,7 +56,7 @@ void store_rx_buffer();
 
 
 // General Modbus Control Functions ------------------------------------------------------------
-int8_t modbus_change_baud_rate(uint8_t *baud_rate);
+int8_t modbus_change_baud_rate();
 int8_t modbus_set_baud_rate(uint8_t baud_rate);
 int8_t modbus_get_baud_rate(uint8_t *baud_rate);
 uint8_t significant_error(int8_t status);

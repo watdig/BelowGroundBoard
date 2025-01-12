@@ -318,6 +318,8 @@ bno055_self_test_result_t bno055_getSelfTestResult();
 bno055_calibration_state_t bno055_getCalibrationState();
 bno055_calibration_data_t bno055_getCalibrationData();
 void bno055_setCalibrationData(bno055_calibration_data_t calData);
+
+void bno055_get_all_values();
 bno055_vector_t bno055_getVectorAccelerometer();
 bno055_vector_t bno055_getVectorMagnetometer();
 bno055_vector_t bno055_getVectorGyroscope();

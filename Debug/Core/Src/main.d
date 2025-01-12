@@ -38,7 +38,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_hal_uart.h \
  ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_hal_uart_ex.h \
  ../Core/Inc/modbus.h ../Core/Inc/bno055_i2c.h ../Core/Inc/main.h \
- ../Core/Inc/bno055.h ../Core/Inc/lin_actuator.h
+ ../Core/Inc/bno055.h ../Core/Inc/lin_actuator.h \
+ ../Core/Inc/error_codes.h
 ../Core/Inc/main.h:
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_hal.h:
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_system.h:
@@ -83,3 +84,4 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/main.h:
 ../Core/Inc/bno055.h:
 ../Core/Inc/lin_actuator.h:
+../Core/Inc/error_codes.h:

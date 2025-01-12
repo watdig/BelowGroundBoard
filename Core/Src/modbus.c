@@ -48,6 +48,7 @@ extern uint16_t holding_register_database[];
 // Private Functions
 uint16_t crc_16(uint8_t *data, uint8_t size);
 int8_t handle_chunk_miss();
+void handle_range(uint16_t holding_register);
 
 /* Table of CRC values for high-order byte */
 static const uint8_t table_crc_hi[] = {
@@ -148,8 +149,8 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 			start_index = chunk_start_i;
 			modbus_header = 0;
 
-			// Setup the DMA to receive the message + crc + 1 in the event that the # bytes is in the message
-			HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx_chunk, (uint16_t)(((rx_chunk[4] << 8) | rx_chunk[5]) + 2 + 1));
+			// Setup the DMA to receive the # message bytes + crc + 1 in the event that the # bytes is in the message
+			HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx_chunk, (uint16_t)(((rx_chunk[4] << 8) | rx_chunk[5])*2 + 2 + 1));
 			__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 		}
 		else
@@ -217,9 +218,10 @@ uint8_t get_rx_buffer(uint8_t index)
 {
 	if (index < MODBUS_RX_BUFFER_SIZE - 1)
 	{
-		return ((start_index + index) > (MODBUS_RX_BUFFER_SIZE - 1))?
+		uint8_t value = ((start_index + index) > (MODBUS_RX_BUFFER_SIZE - 1))?
 				modbus_rx_buffer[(start_index + index) - MODBUS_RX_BUFFER_SIZE] :
 				modbus_rx_buffer[start_index + index];
+		return value;
 	}
 	return 0xFF;
 }
@@ -477,29 +479,46 @@ int8_t edit_multiple_registers()
 		return modbus_exception(MB_ILLEGAL_DATA_ADDRESS);
 	}
 
-	if((last_register_address <= 10 && last_register_address >= 2) 		||
-		(first_register_address <= 10 && first_register_address >= 2) 	||
-		(first_register_address < 2 && last_register_address > 10))
+	if((first_register_address >= 3 && last_register_address <= 33))
 	{
-		// Ensure that ADC values are restricted to read-only
+		// Ensure that sensor values are restricted to read-only
 		return modbus_exception(MB_ILLEGAL_FUNCTION);
 	}
-
 
 	// Edit holding registers
 	modbus_tx_buffer[0] = get_rx_buffer(0); // Append Slave id
 	modbus_tx_buffer[1] = get_rx_buffer(1); // Append Function Code
-	modbus_tx_buffer[2] = num_registers * 2; // Append number of bytes
-	uint8_t index = 3;
+	// Append the Write Address (high byte then low byte)
+	modbus_tx_buffer[2] = get_rx_buffer(2);
+	modbus_tx_buffer[3] = get_rx_buffer(3);
+	// Append the quantity of registers to be written (high byte then low byte)
+	modbus_tx_buffer[4] = get_rx_buffer(4);
+	modbus_tx_buffer[5] = get_rx_buffer(5);
+	uint8_t index = 6;
 
 	for(uint8_t i = 0; i < num_registers; i++)
 	{
-		holding_register_database[first_register_address + i] = (get_rx_buffer(2 * i + 6) << 8) | get_rx_buffer(2 * i + 7);
-		modbus_tx_buffer[index++] = high_byte(holding_register_database[first_register_address + i]);
-		modbus_tx_buffer[index++] = low_byte(holding_register_database[first_register_address + i]);
+		holding_register_database[first_register_address + i] = (get_rx_buffer(2 * i + 7) << 8) | get_rx_buffer(2 * i + 8);
+
+		// Handle the range boundaries of each writable register
+		handle_range(first_register_address + i);
 	}
 
-	return modbus_send(modbus_tx_buffer, index);
+	// TIMING WORKAROUND START
+	HAL_Delay(1);
+	// TIMING WORKAROUND END
+
+	int8_t status = modbus_send(modbus_tx_buffer, index);
+
+	if(status == HAL_OK)
+	{
+		// Special Case Modbus Baud Rate Modification
+		if((first_register_address <= 1) && last_register_address >= 1)
+		{
+			return modbus_change_baud_rate();
+		}
+	}
+	return status;
 }
 
 /*
@@ -514,6 +533,51 @@ int8_t modbus_exception(int8_t exception_code)
 	return modbus_send(modbus_tx_buffer, 3);
 }
 
+/*
+ * Modbus Slave Data Value Range Handler
+ */
+void handle_range(uint16_t holding_register)
+{
+	switch(holding_register)
+	{
+		case 0:
+		{
+			if(holding_register_database[holding_register] > 0xFF)
+			{
+				holding_register_database[holding_register] = 0xFF;
+			}
+			break;
+		}
+		case 1:
+		{
+			if(holding_register_database[holding_register] < 2)
+			{
+				holding_register_database[holding_register] = 2;
+			}
+			else if(holding_register_database[holding_register] > 9)
+			{
+				holding_register_database[holding_register] = 9;
+			}
+			break;
+		}
+		case 2:
+		{
+			if(holding_register_database[holding_register] > 1)
+			{
+				holding_register_database[holding_register] = 1;
+			}
+			break;
+		}
+		case 34 ... 36:
+		{
+			if(holding_register_database[holding_register] > 0x0FFF)
+			{
+				holding_register_database[holding_register] = 0x0FFF;
+			}
+			break;
+		}
+	}
+}
 
 
 
@@ -584,11 +648,11 @@ int8_t modbus_set_rx()
 
 // General Modbus Control Functions ------------------------------------------------------------
 
-int8_t modbus_change_baud_rate(uint8_t* baud_rate)
+int8_t modbus_change_baud_rate()
 {
 	int8_t status = 0;
 
-	switch((*baud_rate))
+	switch(holding_register_database[1])
 	{
 		case BAUD_RATE_4800:
 		{
@@ -632,15 +696,23 @@ int8_t modbus_change_baud_rate(uint8_t* baud_rate)
 		}
 		default:
 		{
-			(*baud_rate) = BAUD_RATE_9600;
+			holding_register_database[1] = BAUD_RATE_9600;
 			huart1.Init.BaudRate = 9600;
-			UART_SetConfig(&huart1);
+			status = UART_SetConfig(&huart1);
+			if(status == HAL_OK)
+			{
+				//HAL_UART_Abort_IT(&huart1);
+			}
 			return MB_ILLEGAL_DATA_VALUE;
 			break;
 		}
 
 	}
 	status = UART_SetConfig(&huart1);
+	if(status == HAL_OK)
+	{
+		//status = HAL_UART_Abort_IT(&huart1);
+	}
 
 	if(status != HAL_OK)
 	{
