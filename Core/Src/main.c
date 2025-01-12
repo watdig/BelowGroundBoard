@@ -54,6 +54,7 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim14;
 
 UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_rx;
 
 /* USER CODE BEGIN PV */
 
@@ -198,22 +199,22 @@ int main(void)
   pid_constraints.command_sat_prev = 0;// Previous saturated command
   pid_constraints.command_prev = 0;    // Previous command
 
-  if(modbus_set_rx(255) != HAL_OK)
+  if(modbus_set_rx() != HAL_OK)
   {
 	  Error_Handler();
   }
 
-  if(HAL_ADC_Start_DMA(&hadc1, raw_data, 9) != HAL_OK)
-  {
-	  Error_Handler();
-  }
+//  if(HAL_ADC_Start_DMA(&hadc1, raw_data, 9) != HAL_OK)
+//  {
+//	  Error_Handler();
+//  }
 
 //  bno055_assignI2C(&hi2c1);
 //  bno055_setup();
 //  bno055_setOperationModeNDOF();
 
-  TIM1->CCR1 = 0;
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+  //TIM1->CCR1 = 0;
+  //HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
   /* USER CODE END 2 */
 
@@ -252,14 +253,14 @@ int main(void)
 			  if(status != 0)
 			  {
 				  // log error in a queue
-				  Error_Handler();
+				  //Error_Handler();
 			  }
 		  }
-		  status = modbus_set_rx(255); // may be able to set size to 12
+		  status = modbus_set_rx();
 		  if(status != 0)
 		  {
 			  // log error in a queue
-			  Error_Handler();
+			  //Error_Handler();
 		  }
 	  }
 
@@ -268,15 +269,15 @@ int main(void)
 //	  bno055_vector_t v3 = bno055_getVectorGyroscope();
 
 	  // 15 adc values relates to x cm of the linear actuator
-	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
-		 holding_register_database[9 + target_actuator] <= holding_register_database[56 + target_actuator] + ACTUATOR_TOLERANCE)
-	  {
-		  actuate(target_actuator, holding_register_database[9 + target_actuator], holding_register_database[56 + target_actuator]);
-	  }
-	  else
-	  {
-		  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
-	  }
+//	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
+//		 holding_register_database[9 + target_actuator] <= holding_register_database[56 + target_actuator] + ACTUATOR_TOLERANCE)
+//	  {
+//		  actuate(target_actuator, holding_register_database[9 + target_actuator], holding_register_database[56 + target_actuator]);
+//	  }
+//	  else
+//	  {
+//		  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
+//	  }
 
 
     /* USER CODE END WHILE */
@@ -697,6 +698,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
+  /* DMAMUX1_DMA1_CH4_5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMAMUX1_DMA1_CH4_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMAMUX1_DMA1_CH4_5_IRQn);
 
 }
 

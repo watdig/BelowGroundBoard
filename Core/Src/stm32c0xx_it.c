@@ -57,6 +57,7 @@
 /* External variables --------------------------------------------------------*/
 extern DMA_HandleTypeDef hdma_adc1;
 extern DMA_HandleTypeDef hdma_i2c1_rx;
+extern DMA_HandleTypeDef hdma_usart1_rx;
 extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 
@@ -168,6 +169,20 @@ void DMA1_Channel2_3_IRQHandler(void)
   /* USER CODE BEGIN DMA1_Channel2_3_IRQn 1 */
 
   /* USER CODE END DMA1_Channel2_3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles DMAMUX1, DMA1 Channel 4 and 5.
+  */
+void DMAMUX1_DMA1_CH4_5_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMAMUX1_DMA1_CH4_5_IRQn 0 */
+
+  /* USER CODE END DMAMUX1_DMA1_CH4_5_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart1_rx);
+  /* USER CODE BEGIN DMAMUX1_DMA1_CH4_5_IRQn 1 */
+
+  /* USER CODE END DMAMUX1_DMA1_CH4_5_IRQn 1 */
 }
 
 /**

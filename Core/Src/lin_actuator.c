@@ -56,7 +56,7 @@ void actuate(uint8_t actuator, uint16_t current, uint16_t target)
 	else
 	{
 		// Just set the duty cycle
-
+		TIM1->CCR1 = pid_step(&pid_constraints, current, target);
 	}
 
 }

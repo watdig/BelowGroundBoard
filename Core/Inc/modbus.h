@@ -50,7 +50,7 @@ int8_t modbus_exception(int8_t exception_code);
 // General Modbus Functions -------------------------------------------------------------------
 int8_t modbus_send(uint8_t *data, uint8_t size);
 uint8_t modbus_rx();
-int8_t modbus_set_rx(uint8_t size);
+int8_t modbus_set_rx();
 void store_rx_buffer();
 
 
