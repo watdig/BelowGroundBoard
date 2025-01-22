@@ -41,7 +41,7 @@ extern "C" {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-#define NUM_HOLDING_REGISTERS 48
+#define NUM_HOLDING_REGISTERS 49
 #define NUM_ACTUATORS 3
 #define ACTUATOR_TOLERANCE 15 // TODO: relate this adc value to mm with some equation
 #define ACTUATOR_TRANSIENT_DELAY 150 // TODO: figure out a safe value for this

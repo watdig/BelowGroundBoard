@@ -98,10 +98,10 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, // Gravity X
 		0xFFFF, // Gravity Y
 		0xFFFF, // Gravity Z
+		0xFFFF, // Quarternion W
 		0xFFFF, // Quarternion X
 		0xFFFF, // Quarternion Y
 		0xFFFF, // Quarternion Z
-		0xFFFF, // Quarternion W
 
 		0xFFFF, // Actuator A Target
 		0xFFFF, // Actuator B Target
@@ -216,9 +216,9 @@ int main(void)
 //	  Error_Handler();
 //  }
 
-//  bno055_assignI2C(&hi2c1);
-//  bno055_setup();
-//  bno055_setOperationModeNDOF();
+  bno055_assignI2C(&hi2c1);
+  bno055_setup();
+  bno055_setOperationModeNDOF();
 
   //TIM1->CCR1 = 0;
   //HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
@@ -233,7 +233,7 @@ int main(void)
    * 1: Actuator B
    * 2: Actuator C
    */
-  uint8_t target_actuator = 0;
+//  uint8_t target_actuator = 0;
 
   while (1)
   {
@@ -288,7 +288,7 @@ int main(void)
 		  }
 	  }
 
-//	  bno055_get_all_values();
+	  bno055_get_all_values();
 
 	  // 15 adc values relates to x cm of the linear actuator
 //	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
@@ -321,10 +321,8 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSIDiv = RCC_HSI_DIV4;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -334,7 +332,7 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSE;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV1;
@@ -481,7 +479,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00100412;
+  hi2c1.Init.Timing = 0x00201D2C;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;

@@ -261,7 +261,7 @@ bno055_vector_t bno055_getVector(uint8_t vec)
 
 void bno055_get_all_values()
 {
-	uint8_t buffer[44];    // Quaternion need 8 bytes
+	uint8_t buffer[44];    // Quaternion needs 8 bytes
 	bno055_readData(BNO055_VECTOR_ACCELEROMETER, buffer, 6);
 	bno055_readData(BNO055_VECTOR_MAGNETOMETER, &buffer[6], 6);
 	bno055_readData(BNO055_VECTOR_GYROSCOPE, &buffer[6*2], 6);
