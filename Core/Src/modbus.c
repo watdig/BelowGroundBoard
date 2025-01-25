@@ -38,12 +38,17 @@ volatile uint16_t chunk_start_i = 0;
 volatile uint16_t chunk_end_i = 0;
 volatile uint16_t modbus_header = 1;
 volatile uint8_t rx_int = 0;
-volatile uint8_t tx_int = 0;
 
 // External Variables
 extern UART_HandleTypeDef huart1;
+extern DMA_HandleTypeDef hdma_adc1;
+extern DMA_HandleTypeDef hdma_i2c1_rx;
 extern DMA_HandleTypeDef hdma_usart1_rx;
 extern uint16_t holding_register_database[];
+extern uint32_t* adc_buffer;
+extern ADC_HandleTypeDef hadc1;
+extern I2C_HandleTypeDef hi2c1;
+extern volatile uint8_t i2c_rx_int;
 
 // Private Functions
 uint16_t crc_16(uint8_t *data, uint8_t size);
@@ -165,12 +170,6 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 			rx_int = 1;
 		}
 	}
-}
-
-// Transmit Interrupt Handler
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
-{
-	tx_int = 1;
 }
 
 
@@ -447,11 +446,48 @@ int8_t return_holding_registers()
 	modbus_tx_buffer[2] = num_registers * 2; // Append number of bytes
 	uint8_t index = 3;
 
+	if(((first_register_address >= 3) && (first_register_address <= 11)) ||
+		((last_register_address >= 3) && (last_register_address <= 11)))
+	{
+		// disable the ADC DMA Stream
+		if(HAL_DMA_Abort(&hdma_adc1) != HAL_OK)
+		{
+			return modbus_exception(MB_SLAVE_ERROR);
+		}
+	}
+	uint8_t prim = 0;
+	if(((first_register_address >= 12) && (first_register_address <= 33)) ||
+		((last_register_address >= 12) && (last_register_address <= 33)))
+	{
+		// disable I2C interrupts
+		prim = __get_PRIMASK();
+		__disable_irq();
+	}
+
 	// Append the Register Values
 	for(uint8_t i = 0; i < num_registers; i++)
 	{
 		modbus_tx_buffer[index++] = high_byte(holding_register_database[first_register_address + i]);
 		modbus_tx_buffer[index++] = low_byte(holding_register_database[first_register_address + i]);
+	}
+
+	if(((first_register_address >= 3) && (first_register_address <= 11)) ||
+		((last_register_address >= 3) && (last_register_address <= 11)))
+	{
+		// enable the ADC DMA Stream
+		if(HAL_ADC_Start_DMA(&hadc1, adc_buffer, 9) != HAL_OK)
+		{
+			return modbus_exception(MB_SLAVE_ERROR);
+		}
+	}
+	if(((first_register_address >= 12) && (first_register_address <= 33)) ||
+		((last_register_address >= 12) && (last_register_address <= 33)))
+	{
+		// enable I2C interrupts
+		if(prim == 0)
+		{
+			__enable_irq();
+		}
 	}
 
 	return modbus_send(modbus_tx_buffer, index);
@@ -479,7 +515,7 @@ int8_t edit_multiple_registers()
 		return modbus_exception(MB_ILLEGAL_DATA_ADDRESS);
 	}
 
-	if((first_register_address >= 3 && last_register_address <= 33))
+	if((first_register_address >= 3) && (last_register_address <= 33))
 	{
 		// Ensure that sensor values are restricted to read-only
 		return modbus_exception(MB_ILLEGAL_FUNCTION);
@@ -593,23 +629,7 @@ int8_t modbus_send(uint8_t *data, uint8_t size)
 	modbus_tx_buffer[size] = low_byte(crc);
 	modbus_tx_buffer[size + 1] = high_byte(crc);
 
-	int8_t status = HAL_OK;
-	status = HAL_UART_Transmit_IT(&huart1, modbus_tx_buffer, size + 2);
-	if(status != HAL_OK)
-	{
-		return status;
-	}
-	time = HAL_GetTick();
-	while(!tx_int && ((HAL_GetTick()) - time < 100));
-	if(tx_int)
-	{
-		tx_int = 0;
-		return HAL_OK;
-	}
-	else
-	{
-		return HAL_TIMEOUT;
-	}
+	return HAL_UART_Transmit(&huart1, modbus_tx_buffer, size + 2, 100);
 }
 
 /*

@@ -255,6 +255,8 @@ typedef struct
   uint8_t z_sign;
 } bno055_axis_map_t;
 
+
+#define NUM_VECTORS 7
 typedef enum
 {
   BNO055_VECTOR_ACCELEROMETER = 0x08,  // Default: m/s²
@@ -294,18 +296,18 @@ enum bno055_axis_map_sign_t
   BNO055_AXIS_SIGN_NEGATIVE = 0x01
 };
 
-void bno055_writeData(uint8_t reg, uint8_t data);
-void bno055_readData(uint8_t reg, uint8_t *data, uint8_t len);
+uint8_t bno055_writeData(uint8_t reg, uint8_t data);
+uint8_t bno055_readData(uint8_t reg, uint8_t *data, uint8_t len);
 void bno055_delay(int time);
 
-void bno055_reset();
+uint8_t bno055_reset();
 bno055_opmode_t bno055_getOperationMode();
 void bno055_setOperationMode(bno055_opmode_t mode);
 void bno055_setOperationModeConfig();
 void bno055_setOperationModeNDOF();
 void bno055_enableExternalCrystal();
 void bno055_disableExternalCrystal();
-void bno055_setup();
+uint8_t bno055_setup();
 
 int8_t bno055_getTemp();
 
@@ -319,7 +321,13 @@ bno055_calibration_state_t bno055_getCalibrationState();
 bno055_calibration_data_t bno055_getCalibrationData();
 void bno055_setCalibrationData(bno055_calibration_data_t calData);
 
+
+uint8_t bno055_rx();
+uint8_t bno055_queue_transaction();
 void bno055_get_all_values();
+
+
+
 bno055_vector_t bno055_getVectorAccelerometer();
 bno055_vector_t bno055_getVectorMagnetometer();
 bno055_vector_t bno055_getVectorGyroscope();

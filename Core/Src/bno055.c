@@ -12,6 +12,65 @@
 #include "bno055.h"
 #include <string.h>
 
+
+typedef struct mem_read_s
+{
+	bno055_vector_type_t reg;
+	uint8_t reg_len;
+} mem_read_t;
+
+mem_read_t mem_read_map[NUM_VECTORS] = {
+		{BNO055_VECTOR_ACCELEROMETER, 6},
+		{BNO055_VECTOR_MAGNETOMETER, 6},
+		{BNO055_VECTOR_GYROSCOPE, 6},
+		{BNO055_VECTOR_EULER, 6},
+		{BNO055_VECTOR_LINEARACCEL, 6},
+		{BNO055_VECTOR_GRAVITY, 6},
+		{BNO055_VECTOR_QUATERNION, 8},
+};
+
+uint8_t read_index;
+uint32_t i2c_time;
+volatile uint8_t i2c_tx_int;
+volatile uint8_t i2c_rx_int;
+
+extern I2C_HandleTypeDef hi2c1;
+extern uint16_t holding_register_database[NUM_HOLDING_REGISTERS];
+
+
+//void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
+//{
+//	i2c_tx_int = 1;
+//}
+//
+//void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
+//{
+//	i2c_rx_int = 1;
+//}
+
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	i2c_tx_int = 1;
+}
+
+void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	i2c_rx_int = 1;
+}
+
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+{
+	// Do something
+}
+
+
+
+
+
+
+
+
+
 uint16_t accelScale = 100;
 uint16_t tempScale = 1;
 uint16_t angularRateScale = 16;
@@ -19,57 +78,77 @@ uint16_t eulerScale = 16;
 uint16_t magScale = 16;
 uint16_t quaScale = (1<<14);    // 2^14
 
-extern uint16_t holding_register_database[NUM_HOLDING_REGISTERS];
 
 void bno055_setPage(uint8_t page) { bno055_writeData(BNO055_PAGE_ID, page); }
 
+uint8_t poll_transaction();
+
 bno055_opmode_t bno055_getOperationMode()
 {
-  bno055_opmode_t mode;
-  bno055_readData(BNO055_OPR_MODE, &mode, 1);
-  return mode;
+	bno055_opmode_t mode;
+	bno055_readData(BNO055_OPR_MODE, &mode, 1);
+	return mode;
 }
 
 void bno055_setOperationMode(bno055_opmode_t mode)
 {
-  bno055_writeData(BNO055_OPR_MODE, mode);
-  if (mode == BNO055_OPERATION_MODE_CONFIG)
-  {
-    bno055_delay(19);
-  }
-  else
-  {
-    bno055_delay(7);
-  }
+	bno055_writeData(BNO055_OPR_MODE, mode);
+	if (mode == BNO055_OPERATION_MODE_CONFIG)
+	{
+		bno055_delay(19);
+	}
+	else
+	{
+		bno055_delay(7);
+	}
 }
 
 void bno055_setOperationModeConfig()
 {
-  bno055_setOperationMode(BNO055_OPERATION_MODE_CONFIG);
+	bno055_setOperationMode(BNO055_OPERATION_MODE_CONFIG);
 }
 
 void bno055_setOperationModeNDOF()
 {
-  bno055_setOperationMode(BNO055_OPERATION_MODE_NDOF);
+	bno055_setOperationMode(BNO055_OPERATION_MODE_NDOF);
 }
 
 void bno055_setExternalCrystalUse(bool state)
 {
-  bno055_setPage(0);
-  uint8_t tmp = 0;
-  bno055_readData(BNO055_SYS_TRIGGER, &tmp, 1);
-  tmp |= (state == true) ? 0x80 : 0x0;
-  bno055_writeData(BNO055_SYS_TRIGGER, tmp);
-  bno055_delay(700);
+	bno055_setPage(0);
+	uint8_t tmp = 0;
+	bno055_readData(BNO055_SYS_TRIGGER, &tmp, 1);
+	tmp |= (state == true) ? 0x80 : 0x0;
+	bno055_writeData(BNO055_SYS_TRIGGER, tmp);
+	bno055_delay(700);
 }
 
 void bno055_enableExternalCrystal() { bno055_setExternalCrystalUse(true); }
 void bno055_disableExternalCrystal() { bno055_setExternalCrystalUse(false); }
 
-void bno055_reset()
+uint8_t poll_transaction()
 {
-  bno055_writeData(BNO055_SYS_TRIGGER, 0x20);
-  bno055_delay(700);
+	i2c_time = HAL_GetTick();
+	while(HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY)
+	{
+		if(HAL_GetTick() - i2c_time >= I2C_TIMEOUT_MS)
+		{
+			return HAL_ERROR;
+		}
+	}
+	return HAL_OK;
+}
+
+uint8_t bno055_reset()
+{
+	uint8_t status = HAL_OK;
+	status = bno055_writeData(BNO055_SYS_TRIGGER, 0x20);
+	if(status != HAL_OK)
+	{
+	  return status;
+	}
+	bno055_delay(700);
+	return status;
 }
 
 int8_t bno055_getTemp()
@@ -80,22 +159,37 @@ int8_t bno055_getTemp()
   return t;
 }
 
-void bno055_setup()
+uint8_t bno055_setup()
 {
-  bno055_reset();
+	uint8_t status = HAL_OK;
+	read_index = 0;
+	status = bno055_reset();
+	if(status != HAL_OK)
+	{
+		return status;
+	}
 
-  uint8_t id = 0;
-  bno055_readData(BNO055_CHIP_ID, &id, 1);
-  if (id != BNO055_ID)
-  {
-    printf("Can't find BNO055, id: 0x%02x. Please check your wiring.\r\n", id);
-  }
-  bno055_setPage(0);
-  bno055_writeData(BNO055_SYS_TRIGGER, 0x0); // TODO: change to external oscillator
+	uint8_t id = 0;
+	status = bno055_readData(BNO055_CHIP_ID, &id, 1);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+	if (id != BNO055_ID)
+	{
+		return HAL_ERROR;
+	}
+	bno055_setPage(0);
+	status = bno055_writeData(BNO055_SYS_TRIGGER, 0x0); // TODO: change to external oscillator
 
-  // Select BNO055 config mode
-  bno055_setOperationModeConfig();
-  bno055_delay(10);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+	// Select BNO055 config mode
+	bno055_setOperationModeConfig();
+	bno055_delay(10);
+	return status;
 }
 
 int16_t bno055_getSWRevision()
@@ -205,7 +299,7 @@ void bno055_setCalibrationData(bno055_calibration_data_t calData)
 
 bno055_vector_t bno055_getVector(uint8_t vec)
 {
-  bno055_setPage(0); // TODO: check if you need to do this every time
+  bno055_setPage(0); // TODO: check if you need to do this every i2c_time
   uint8_t buffer[8];    // Quaternion need 8 bytes
 
   if (vec == BNO055_VECTOR_QUATERNION)
@@ -261,24 +355,33 @@ bno055_vector_t bno055_getVector(uint8_t vec)
 
 void bno055_get_all_values()
 {
-	uint8_t buffer[44];    // Quaternion needs 8 bytes
-	bno055_readData(BNO055_VECTOR_ACCELEROMETER, buffer, 6);
-	bno055_readData(BNO055_VECTOR_MAGNETOMETER, &buffer[6], 6);
-	bno055_readData(BNO055_VECTOR_GYROSCOPE, &buffer[6*2], 6);
-	bno055_readData(BNO055_VECTOR_EULER, &buffer[6*3], 6);
-	bno055_readData(BNO055_VECTOR_LINEARACCEL, &buffer[6*4], 6);
-	bno055_readData(BNO055_VECTOR_GRAVITY, &buffer[6*5], 6);
-	bno055_readData(BNO055_VECTOR_QUATERNION, &buffer[6*6], 8);
-
-	for(uint8_t i = 0; i < 22; i++)
+	uint8_t* buffer = (uint8_t*)(&holding_register_database[12]);
+	for(uint8_t i = 0; i < NUM_VECTORS; i++)
 	{
-		holding_register_database[12 + i] = (buffer[2*i + 1] << 8) | buffer[2*i];
+		bno055_readData(mem_read_map[i].reg, &buffer[6 * i], mem_read_map[i].reg_len);
 	}
 }
-
-void bno055_retrieve_values()
+uint8_t bno055_rx()
 {
-
+	if(i2c_rx_int)
+	{
+		i2c_rx_int = 0;
+		return 1;
+	}
+	return i2c_rx_int;
+}
+uint8_t bno055_queue_transaction()
+{
+	uint8_t status = HAL_OK;
+	uint8_t* buffer = (uint8_t*)(&holding_register_database[12]);
+	status = HAL_I2C_Mem_Read_IT(&hi2c1, BNO055_I2C_ADDR << 1, mem_read_map[read_index].reg,
+			I2C_MEMADD_SIZE_8BIT, &buffer[6 * read_index], mem_read_map[read_index].reg_len);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+	read_index = (read_index == NUM_VECTORS - 1)? 0 : read_index + 1;
+	return status;
 }
 
 bno055_vector_t bno055_getVectorAccelerometer()

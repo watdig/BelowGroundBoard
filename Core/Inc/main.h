@@ -46,6 +46,7 @@ extern "C" {
 #define ACTUATOR_TOLERANCE 15 // TODO: relate this adc value to mm with some equation
 #define ACTUATOR_TRANSIENT_DELAY 150 // TODO: figure out a safe value for this
 
+#define I2C_TIMEOUT_MS 100
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -63,24 +64,6 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define Thrust_Sensor_A_Pin GPIO_PIN_0
-#define Thrust_Sensor_A_GPIO_Port GPIOA
-#define Thrust_Sensor_B_Pin GPIO_PIN_1
-#define Thrust_Sensor_B_GPIO_Port GPIOA
-#define Thrust_Sensor_C_Pin GPIO_PIN_2
-#define Thrust_Sensor_C_GPIO_Port GPIOA
-#define Motor_Temp_Pin GPIO_PIN_3
-#define Motor_Temp_GPIO_Port GPIOA
-#define Earth_Pressure_Pin GPIO_PIN_4
-#define Earth_Pressure_GPIO_Port GPIOA
-#define Flame_Sensor_Pin GPIO_PIN_5
-#define Flame_Sensor_GPIO_Port GPIOA
-#define Actuator_A_Pos_Pin GPIO_PIN_6
-#define Actuator_A_Pos_GPIO_Port GPIOA
-#define Actuator_B_Pos_Pin GPIO_PIN_7
-#define Actuator_B_Pos_GPIO_Port GPIOA
-#define Actuator_C_Pos_Pin GPIO_PIN_8
-#define Actuator_C_Pos_GPIO_Port GPIOA
 #define Actuator_PWM_Pin GPIO_PIN_15
 #define Actuator_PWM_GPIO_Port GPIOA
 #define Encoder_Pulse_B_Pin GPIO_PIN_1

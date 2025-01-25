@@ -47,7 +47,6 @@ ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
-DMA_HandleTypeDef hdma_i2c1_rx;
 
 SPI_HandleTypeDef hspi1;
 
@@ -61,8 +60,6 @@ DMA_HandleTypeDef hdma_usart1_rx;
 
 pid_t pid_constraints;
 uint16_t pin_map[NUM_ACTUATORS];
-
-uint32_t raw_data[9];
 
 uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0x0001,	// SLAVE_ID
@@ -114,10 +111,13 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, 0xFFFF, // Maximum Rate of Change
 };
 
+uint32_t adc_buffer[9]; //(uint32_t*)(&holding_register_database[3]);
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+void PeriphCommonClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
@@ -133,17 +133,14 @@ static void MX_TIM14_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-	// will be used for when i2c is designed with interrupts
-}
-
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-	for(uint8_t i = 0; i < 9; i++)
-	{
-		holding_register_database[i + 3] = (uint16_t)raw_data[i];
-	}
+	HAL_ADC_Stop_DMA(&hadc1);
+
+//	for(uint8_t i = 0; i < 9; i++)
+//	{
+//		holding_register_database[i + 3] = (uint16_t)raw_data[i];
+//	}
 }
 /* USER CODE END 0 */
 
@@ -169,6 +166,9 @@ int main(void)
 
   /* Configure the system clock */
   SystemClock_Config();
+
+  /* Configure the peripherals common clocks */
+  PeriphCommonClock_Config();
 
   /* USER CODE BEGIN SysInit */
 
@@ -211,12 +211,11 @@ int main(void)
 	  Error_Handler();
   }
 
-//  if(HAL_ADC_Start_DMA(&hadc1, raw_data, 9) != HAL_OK)
-//  {
-//	  Error_Handler();
-//  }
+  if(HAL_ADC_Start_DMA(&hadc1, adc_buffer, 1) != HAL_OK)
+  {
+	  Error_Handler();
+  }
 
-  bno055_assignI2C(&hi2c1);
   bno055_setup();
   bno055_setOperationModeNDOF();
 
@@ -234,6 +233,9 @@ int main(void)
    * 2: Actuator C
    */
 //  uint8_t target_actuator = 0;
+
+  // Start the retrieval process for the bno055 (i2c in interrupt mode)
+  //bno055_queue_transaction();
 
   while (1)
   {
@@ -288,9 +290,10 @@ int main(void)
 		  }
 	  }
 
-//	  if(HAL_I2C_GetState(&hi2c1) == HAL_I2C_STATE_READY)
+	  // Handle when an i2c Transaction has completed (i2c in interrupt mode)
+//	  if(bno055_rx())
 //	  {
-//		  bno055_retrieve_values();
+//		  bno055_queue_transaction();
 //	  }
 	  bno055_get_all_values();
 
@@ -325,8 +328,11 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSIDiv = RCC_HSI_DIV4;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -342,6 +348,25 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief Peripherals Common Clock Configuration
+  * @retval None
+  */
+void PeriphCommonClock_Config(void)
+{
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+
+  /** Initializes the common peripherals clocks
+  */
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_HSIKER;
+  PeriphClkInit.HSIKerClockDivider = RCC_HSIKER_DIV1;
+
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }
@@ -372,11 +397,12 @@ static void MX_ADC1_Init(void)
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.ScanConvMode = ADC_SCAN_SEQ_FIXED;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
   hadc1.Init.LowPowerAutoPowerOff = DISABLE;
   hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.NbrOfConversion = 0;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.DMAContinuousRequests = ENABLE;
@@ -722,9 +748,6 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
-  /* DMAMUX1_DMA1_CH4_5_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMAMUX1_DMA1_CH4_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMAMUX1_DMA1_CH4_5_IRQn);
 
 }
 
