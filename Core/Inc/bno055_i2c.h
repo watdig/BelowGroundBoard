@@ -26,6 +26,8 @@
 
 #include "bno055.h"
 
+extern I2C_HandleTypeDef hi2c1;
+
 I2C_HandleTypeDef *_bno055_i2c_port;
 
 void bno055_assignI2C(I2C_HandleTypeDef *hi2c_device)
@@ -46,7 +48,7 @@ void bno055_writeData(uint8_t reg, uint8_t data)
 {
   uint8_t txdata[2] = {reg, data};
   uint8_t status;
-  status = HAL_I2C_Master_Transmit(_bno055_i2c_port, BNO055_I2C_ADDR << 1, txdata, sizeof(txdata), 10);
+  status = HAL_I2C_Master_Transmit(&hi2c1, BNO055_I2C_ADDR << 1, txdata, sizeof(txdata), 10);
   if (status == HAL_OK)
   {
     return;
@@ -69,7 +71,7 @@ void bno055_writeData(uint8_t reg, uint8_t data)
     printf("Unknown status data %d", status);
   }
 
-  uint32_t error = HAL_I2C_GetError(_bno055_i2c_port);
+  uint32_t error = HAL_I2C_GetError(&hi2c1);
   if (error == HAL_I2C_ERROR_NONE)
   {
     return;
@@ -99,7 +101,7 @@ void bno055_writeData(uint8_t reg, uint8_t data)
     printf("HAL_I2C_ERROR_TIMEOUT\r\n");
   }
 
-  HAL_I2C_StateTypeDef state = HAL_I2C_GetState(_bno055_i2c_port);
+  HAL_I2C_StateTypeDef state = HAL_I2C_GetState(&hi2c1);
   if (state == HAL_I2C_STATE_RESET)
   {
     printf("HAL_I2C_STATE_RESET\r\n");
@@ -153,8 +155,8 @@ void bno055_writeData(uint8_t reg, uint8_t data)
 void bno055_readData(uint8_t reg, uint8_t *data, uint8_t len)
 {
 	HAL_StatusTypeDef status = HAL_OK;
-  status = HAL_I2C_Master_Transmit(_bno055_i2c_port, BNO055_I2C_ADDR << 1, &reg, 1, 100);
-  status = HAL_I2C_Master_Receive(_bno055_i2c_port, BNO055_I2C_ADDR << 1, data, len, 100);
+  status = HAL_I2C_Master_Transmit(&hi2c1, BNO055_I2C_ADDR << 1, &reg, 1, 100);
+  status = HAL_I2C_Master_Receive(&hi2c1, BNO055_I2C_ADDR << 1, data, len, 100);
 
 //   status = HAL_I2C_Mem_Read(_bno055_i2c_port, BNO055_I2C_ADDR_LO<<1, reg,
 //   I2C_MEMADD_SIZE_8BIT, data, len, 100);

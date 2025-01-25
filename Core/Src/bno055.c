@@ -276,6 +276,11 @@ void bno055_get_all_values()
 	}
 }
 
+void bno055_retrieve_values()
+{
+
+}
+
 bno055_vector_t bno055_getVectorAccelerometer()
 {
   return bno055_getVector(BNO055_VECTOR_ACCELEROMETER);

@@ -288,6 +288,10 @@ int main(void)
 		  }
 	  }
 
+//	  if(HAL_I2C_GetState(&hi2c1) == HAL_I2C_STATE_READY)
+//	  {
+//		  bno055_retrieve_values();
+//	  }
 	  bno055_get_all_values();
 
 	  // 15 adc values relates to x cm of the linear actuator
@@ -479,7 +483,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00201D2C;
+  hi2c1.Init.Timing = 0x0010020B;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
