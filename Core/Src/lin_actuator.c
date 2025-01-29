@@ -11,34 +11,153 @@
 #include "main.h"
 #include "lin_actuator.h"
 
-extern SPI_HandleTypeDef hspi1;
+
 uint8_t selected_actuator = 0;
-
-uint8_t time_stamped = 0;
+uint8_t drv_on = 0;
 uint32_t time_ms = 0;
-extern uint16_t pin_map[NUM_ACTUATORS];
 
+extern uint16_t pin_map[NUM_ACTUATORS];
+extern GPIO_TypeDef* port_map[NUM_ACTUATORS];
 extern pid_t pid_constraints;
+extern SPI_HandleTypeDef hspi1;
+extern TIM_HandleTypeDef htim1;
+
+uint8_t tx_data[2];
+uint8_t rx_data[2];
 
 float pid_step(pid_t *pid, float measurement, float setpoint);
 
-void actuate(uint8_t actuator, uint16_t current, uint16_t target)
+
+HAL_StatusTypeDef init_lin_actuator()
+{
+	HAL_StatusTypeDef status = HAL_OK;
+	// Initialize the PWM signal
+	TIM1->CCR1 = 0;
+	status = HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+
+	// Test communication by reading the Device ID
+	tx_data[0] = (DEVICE_ID | READ_MASK);
+	tx_data[1] = DUMMY_DATA;
+	status = HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+
+	if(rx_data[1] == DRV8244_ID)
+	{
+		// Unlock the Config Registers. Refer to section 8.6.1.5
+		tx_data[0] = COMMAND; // WRITE MASK = 0
+		tx_data[1] = REG_UNLOCK;
+		status = HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+		if(status != HAL_OK)
+		{
+			return status;
+		}
+
+		// Configure independent mode
+		tx_data[0] = CONFIG_3;
+		tx_data[1] = TOFF_40U | S_MODE_INDEPENDENT;
+		status = HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+		if(status != HAL_OK)
+		{
+			return status;
+		}
+
+		// Lock the Config Registers. Refer to section 8.6.1.5
+		tx_data[0] = COMMAND; // WRITE MASK = 0
+		tx_data[1] = REG_LOCK;
+		status = HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+		if(status != HAL_OK)
+		{
+			return status;
+		}
+	}
+	else
+	{
+		return HAL_ERROR;
+	}
+	return HAL_OK;
+}
+
+void actuate_pwm(uint8_t actuator, uint16_t current, uint16_t target)
+{
+	if(selected_actuator != actuator)
+	{
+		if(drv_on)
+		{
+			// Unlock the SPI_IN register. Refer to section 8.6.1.5
+			tx_data[0] = COMMAND; // WRITE MASK = 0
+			tx_data[1] = SPI_IN_UNLOCK;
+			HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+
+			// Turn off the DRV8244
+			tx_data[0] = SPI_IN; // WRITE MASK = 0
+			tx_data[1] = 0;
+			HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+
+			// Lock the SPI_IN register. Refer to section 8.6.1.5
+			tx_data[0] = COMMAND; // WRITE MASK = 0
+			tx_data[1] = SPI_IN_LOCK;
+			HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+			drv_on = 0;
+			time_ms = HAL_GetTick();
+		}
+		if(HAL_GetTick() - time_ms >= ACTUATOR_TRANSIENT_DELAY)
+		{
+			// Deactivate the old actuator
+			HAL_GPIO_TogglePin(GPIOB, pin_map[selected_actuator]);
+			// Activate the new actuator
+			HAL_GPIO_TogglePin(GPIOB, pin_map[actuator]);
+
+			// Unlock the SPI_IN register. Refer to section 8.6.1.5
+			tx_data[0] = COMMAND; // WRITE MASK = 0
+			tx_data[1] = SPI_IN_UNLOCK;
+			HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+
+			// Turn on the DRV8244
+			if(target > current)
+			{
+				// Forwards
+				tx_data[0] = SPI_IN; // WRITE MASK = 0
+				tx_data[1] = S_EN_IN1;
+				HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+			}
+			else
+			{
+				// Backwards
+				tx_data[0] = SPI_IN; // WRITE MASK = 0
+				tx_data[1] = S_PH_IN2;
+				HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+			}
+			// Lock the SPI_IN register. Refer to section 8.6.1.5
+			tx_data[0] = COMMAND; // WRITE MASK = 0
+			tx_data[1] = SPI_IN_LOCK;
+			HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+			drv_on = 1;
+			selected_actuator = actuator;
+		}
+	}
+}
+
+void actuate_spi(uint8_t actuator, uint16_t current, uint16_t target)
 {
 	if(selected_actuator != actuator)
 	{
 		// Wait an amount of time for electrical safety
-		if(!time_stamped)
+		if(drv_on)
 		{
 			// Shut off the PWM pin
-			TIM1->CCR1 = 0;
-			time_ms = HAL_GetTick();
-			time_stamped = 1;
-		}
 
+			time_ms = HAL_GetTick();
+			drv_on = 0;
+		}
 		if(HAL_GetTick() - time_ms >= ACTUATOR_TRANSIENT_DELAY)
 		{
-			// Reset the transient protection timer
-			time_stamped = 0;
 
 			// Deactivate the old actuator
 			HAL_GPIO_TogglePin(GPIOB, pin_map[selected_actuator]);
@@ -46,12 +165,14 @@ void actuate(uint8_t actuator, uint16_t current, uint16_t target)
 			// Activate the new actuator
 			HAL_GPIO_TogglePin(GPIOB, pin_map[actuator]);
 
-			// Exit this code section by switching the actuator
-			selected_actuator = actuator;
-
 			// Set the duty cycle
 			TIM1->CCR1 = pid_step(&pid_constraints, current, target);
+
+			drv_on = 1;
+			// Exit this code section by switching the actuator
+			selected_actuator = actuator;
 		}
+
 	}
 	else
 	{
