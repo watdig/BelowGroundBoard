@@ -4,8 +4,8 @@
  *  Created on: Nov 22, 2024
  *      Author: Victor Kalenda
  *
- *      All credit given to https://github.com/ivyknob/bno055_stm32/tree/master
- *      where the code was found and used for this stm32 application
+ *      Credit given to https://github.com/ivyknob/bno055_stm32/tree/master
+ *      where the framework of this code was found for STM32 applications
  */
 
 #include "main.h"
@@ -19,7 +19,8 @@ typedef struct mem_read_s
 	uint8_t reg_len;
 } mem_read_t;
 
-mem_read_t mem_read_map[NUM_VECTORS] = {
+mem_read_t mem_read_map[NUM_VECTORS] =
+{
 		{BNO055_VECTOR_ACCELEROMETER, 6},
 		{BNO055_VECTOR_MAGNETOMETER, 6},
 		{BNO055_VECTOR_GYROSCOPE, 6},
@@ -37,16 +38,6 @@ volatile uint8_t i2c_rx_int;
 extern I2C_HandleTypeDef hi2c1;
 extern uint16_t holding_register_database[NUM_HOLDING_REGISTERS];
 
-
-//void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
-//{
-//	i2c_tx_int = 1;
-//}
-//
-//void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
-//{
-//	i2c_rx_int = 1;
-//}
 
 void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
@@ -297,62 +288,6 @@ void bno055_setCalibrationData(bno055_calibration_data_t calData)
   bno055_setOperationMode(operationMode);
 }
 
-bno055_vector_t bno055_getVector(uint8_t vec)
-{
-  bno055_setPage(0); // TODO: check if you need to do this every i2c_time
-  uint8_t buffer[8];    // Quaternion need 8 bytes
-
-  if (vec == BNO055_VECTOR_QUATERNION)
-  {
-	  bno055_readData(vec, buffer, 8);
-  }
-  else
-  {
-	  bno055_readData(vec, buffer, 6);
-  }
-
-
-  float scale = 1;
-
-  if (vec == BNO055_VECTOR_MAGNETOMETER)
-  {
-    scale = magScale;
-  }
-  else if (vec == BNO055_VECTOR_ACCELEROMETER || vec == BNO055_VECTOR_LINEARACCEL || vec == BNO055_VECTOR_GRAVITY)
-  {
-    scale = accelScale;
-  }
-  else if (vec == BNO055_VECTOR_GYROSCOPE)
-  {
-    scale = angularRateScale;
-  }
-  else if (vec == BNO055_VECTOR_EULER)
-  {
-    scale = eulerScale;
-  }
-  else if (vec == BNO055_VECTOR_QUATERNION)
-  {
-    scale = quaScale;
-  }
-
-  bno055_vector_t xyz = {.w = 0, .x = 0, .y = 0, .z = 0};
-  if (vec == BNO055_VECTOR_QUATERNION)
-  {
-    xyz.w = (float)((int16_t)((buffer[1] << 8) | buffer[0]) / scale);
-    xyz.x = (float)((int16_t)((buffer[3] << 8) | buffer[2]) / scale);
-    xyz.y = (float)((int16_t)((buffer[5] << 8) | buffer[4]) / scale);
-    xyz.z = (float)((int16_t)((buffer[7] << 8) | buffer[6]) / scale);
-  }
-  else
-  {
-    xyz.x = (float)((int16_t)((buffer[1] << 8) | buffer[0]) / scale);
-    xyz.y = (float)((int16_t)((buffer[3] << 8) | buffer[2]) / scale);
-    xyz.z = (float)((int16_t)((buffer[5] << 8) | buffer[4]) / scale);
-  }
-
-  return xyz;
-}
-
 void bno055_get_all_values()
 {
 	uint8_t* buffer = (uint8_t*)(&holding_register_database[12]);
@@ -382,35 +317,6 @@ uint8_t bno055_queue_transaction()
 	}
 	read_index = (read_index == NUM_VECTORS - 1)? 0 : read_index + 1;
 	return status;
-}
-
-bno055_vector_t bno055_getVectorAccelerometer()
-{
-  return bno055_getVector(BNO055_VECTOR_ACCELEROMETER);
-}
-bno055_vector_t bno055_getVectorMagnetometer()
-{
-  return bno055_getVector(BNO055_VECTOR_MAGNETOMETER);
-}
-bno055_vector_t bno055_getVectorGyroscope()
-{
-  return bno055_getVector(BNO055_VECTOR_GYROSCOPE);
-}
-bno055_vector_t bno055_getVectorEuler()
-{
-  return bno055_getVector(BNO055_VECTOR_EULER);
-}
-bno055_vector_t bno055_getVectorLinearAccel()
-{
-  return bno055_getVector(BNO055_VECTOR_LINEARACCEL);
-}
-bno055_vector_t bno055_getVectorGravity()
-{
-  return bno055_getVector(BNO055_VECTOR_GRAVITY);
-}
-bno055_vector_t bno055_getVectorQuaternion()
-{
-  return bno055_getVector(BNO055_VECTOR_QUATERNION);
 }
 
 void bno055_setAxisMap(bno055_axis_map_t axis)

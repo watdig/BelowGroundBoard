@@ -217,10 +217,9 @@ uint8_t get_rx_buffer(uint8_t index)
 {
 	if (index < MODBUS_RX_BUFFER_SIZE - 1)
 	{
-		uint8_t value = ((start_index + index) > (MODBUS_RX_BUFFER_SIZE - 1))?
+		return ((start_index + index) > (MODBUS_RX_BUFFER_SIZE - 1))?
 				modbus_rx_buffer[(start_index + index) - MODBUS_RX_BUFFER_SIZE] :
 				modbus_rx_buffer[start_index + index];
-		return value;
 	}
 	return 0xFF;
 }
@@ -446,8 +445,8 @@ int8_t return_holding_registers()
 	modbus_tx_buffer[2] = num_registers * 2; // Append number of bytes
 	uint8_t index = 3;
 
-	if(((first_register_address >= 3) && (first_register_address <= 11)) ||
-		((last_register_address >= 3) && (last_register_address <= 11)))
+	if(((first_register_address >= ADC_0) && (first_register_address <= ADC_8)) ||
+		((last_register_address >= ADC_0) && (last_register_address <= ADC_8)))
 	{
 		// disable the ADC DMA Stream
 		if(HAL_DMA_Abort(&hdma_adc1) != HAL_OK)
@@ -456,8 +455,8 @@ int8_t return_holding_registers()
 		}
 	}
 	uint8_t prim = 0;
-	if(((first_register_address >= 12) && (first_register_address <= 33)) ||
-		((last_register_address >= 12) && (last_register_address <= 33)))
+	if(((first_register_address >= ACCELEROMETER_X) && (first_register_address <= QUARTERNION_Z)) ||
+		((last_register_address >= ACCELEROMETER_X) && (last_register_address <= QUARTERNION_Z)))
 	{
 		// disable I2C interrupts
 		prim = __get_PRIMASK();
@@ -471,8 +470,8 @@ int8_t return_holding_registers()
 		modbus_tx_buffer[index++] = low_byte(holding_register_database[first_register_address + i]);
 	}
 
-	if(((first_register_address >= 3) && (first_register_address <= 11)) ||
-		((last_register_address >= 3) && (last_register_address <= 11)))
+	if(((first_register_address >= ADC_0) && (first_register_address <= ADC_8)) ||
+		((last_register_address >= ADC_0) && (last_register_address <= ADC_8)))
 	{
 		// enable the ADC DMA Stream
 		if(HAL_ADC_Start_DMA(&hadc1, adc_buffer, 9) != HAL_OK)
@@ -480,8 +479,8 @@ int8_t return_holding_registers()
 			return modbus_exception(MB_SLAVE_ERROR);
 		}
 	}
-	if(((first_register_address >= 12) && (first_register_address <= 33)) ||
-		((last_register_address >= 12) && (last_register_address <= 33)))
+	if(((first_register_address >= ACCELEROMETER_X) && (first_register_address <= QUARTERNION_Z)) ||
+		((last_register_address >= ACCELEROMETER_X) && (last_register_address <= QUARTERNION_Z)))
 	{
 		// enable I2C interrupts
 		if(prim == 0)
@@ -515,7 +514,9 @@ int8_t edit_multiple_registers()
 		return modbus_exception(MB_ILLEGAL_DATA_ADDRESS);
 	}
 
-	if((first_register_address >= 3) && (last_register_address <= 33))
+	// Protect Read only values
+	if(((first_register_address >= ADC_0) && (first_register_address <= QUARTERNION_Z)) ||
+		((last_register_address >= ADC_0) && (last_register_address <= QUARTERNION_Z)))
 	{
 		// Ensure that sensor values are restricted to read-only
 		return modbus_exception(MB_ILLEGAL_FUNCTION);
@@ -576,7 +577,7 @@ void handle_range(uint16_t holding_register)
 {
 	switch(holding_register)
 	{
-		case 0:
+		case MODBUS_ID:
 		{
 			if(holding_register_database[holding_register] > 0xFF)
 			{
@@ -584,19 +585,19 @@ void handle_range(uint16_t holding_register)
 			}
 			break;
 		}
-		case 1:
+		case MB_BAUD_RATE:
 		{
-			if(holding_register_database[holding_register] < 2)
+			if(holding_register_database[holding_register] < BAUD_RATE_4800)
 			{
-				holding_register_database[holding_register] = 2;
+				holding_register_database[holding_register] = BAUD_RATE_4800;
 			}
-			else if(holding_register_database[holding_register] > 9)
+			else if(holding_register_database[holding_register] > BAUD_RATE_256000)
 			{
-				holding_register_database[holding_register] = 9;
+				holding_register_database[holding_register] = BAUD_RATE_256000;
 			}
 			break;
 		}
-		case 2:
+		case AUTOPILOT:
 		{
 			if(holding_register_database[holding_register] > 1)
 			{
@@ -604,7 +605,7 @@ void handle_range(uint16_t holding_register)
 			}
 			break;
 		}
-		case 34 ... 36:
+		case ACTUATOR_A_TARGET ... ACTUATOR_C_TARGET:
 		{
 			if(holding_register_database[holding_register] > 0x0FFF)
 			{
@@ -672,7 +673,7 @@ int8_t modbus_change_baud_rate()
 {
 	int8_t status = 0;
 
-	switch(holding_register_database[1])
+	switch(holding_register_database[MB_BAUD_RATE])
 	{
 		case BAUD_RATE_4800:
 		{
@@ -716,7 +717,7 @@ int8_t modbus_change_baud_rate()
 		}
 		default:
 		{
-			holding_register_database[1] = BAUD_RATE_9600;
+			holding_register_database[MB_BAUD_RATE] = BAUD_RATE_9600;
 			huart1.Init.BaudRate = 9600;
 			status = UART_SetConfig(&huart1);
 			if(status == HAL_OK)

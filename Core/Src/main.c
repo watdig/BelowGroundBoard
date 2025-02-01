@@ -35,6 +35,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+#define TEST
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -64,8 +65,8 @@ GPIO_TypeDef* port_map[NUM_ACTUATORS];
 
 
 uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
-		0x0001,	// SLAVE_ID
-		0x0003, // BAUD_RATE
+		0x0001,	// MODBUS_ID
+		0x0003, // MB_BAUD_RATE
 		0x0000, // AUTOPILOT
 
 		0xFFFF, // ADC 0
@@ -216,19 +217,19 @@ int main(void)
 //	  Error_Handler();
 //  }
 
-//  if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[3]), 8) != HAL_OK)
-//  {
-//	  Error_Handler();
-//  }
+  if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[3]), 8) != HAL_OK)
+  {
+	  Error_Handler();
+  }
 
 //  bno055_setup();
 //  bno055_setOperationModeNDOF();
 
 
-  	if(init_lin_actuator() != HAL_OK)
-  	{
-  		Error_Handler();
-  	}
+//  	if(init_lin_actuator() != HAL_OK)
+//  	{
+//  		Error_Handler();
+//  	}
 
   /* USER CODE END 2 */
 
@@ -247,8 +248,6 @@ int main(void)
 
   while (1)
   {
-
-#ifndef TEST
 
 	  if(modbus_rx())
 	  {
@@ -302,21 +301,21 @@ int main(void)
 	  }
 
 	  // Handle when an i2c Transaction has completed (i2c in interrupt mode)
-	  if(bno055_rx())
-	  {
-		  bno055_queue_transaction();
-	  }
+//	  if(bno055_rx())
+//	  {
+//		  bno055_queue_transaction();
+//	  }
 	  //bno055_get_all_values();
 
-	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
-		 holding_register_database[9 + target_actuator] <= holding_register_database[56 + target_actuator] + ACTUATOR_TOLERANCE)
-	  {
-		  actuate_spi(target_actuator, holding_register_database[9 + target_actuator], holding_register_database[56 + target_actuator]);
-	  }
-	  else
-	  {
-		  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
-	  }
+//	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
+//		 holding_register_database[9 + target_actuator] <= holding_register_database[56 + target_actuator] + ACTUATOR_TOLERANCE)
+//	  {
+//		  actuate_spi(target_actuator, holding_register_database[9 + target_actuator], holding_register_database[56 + target_actuator]);
+//	  }
+//	  else
+//	  {
+//		  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
+//	  }
 
 	  // 15 adc values relates to x cm of the linear actuator
 //	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
@@ -329,7 +328,6 @@ int main(void)
 //		  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
 //	  }
 
-#endif
 	  // TEST CODE START
 
 	  // DRV8244 Testing
@@ -340,32 +338,32 @@ int main(void)
 //	  TIM1->CCR1 = 0;
 //	  HAL_GPIO_WritePin(Actuator_A_EN_GPIO_Port, Actuator_A_EN_Pin, GPIO_PIN_RESET);
 
-	  uint8_t tx_data[2];
-	  uint8_t rx_data[2];
-
-	  // Independent Mode Test
-	  // Unlock the SPI_IN register. Refer to section 8.6.1.5
-		tx_data[0] = COMMAND; // WRITE MASK = 0
-		tx_data[1] = SPI_IN_UNLOCK;
-		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
-
-
-		// Forwards
-		tx_data[0] = SPI_IN; // WRITE MASK = 0
-		tx_data[1] = S_EN_IN1;
-		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
-
-		HAL_Delay(1000);
-
-		// Turn off the DRV8244
-		tx_data[0] = SPI_IN; // WRITE MASK = 0
-		tx_data[1] = 0;
-		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
-
-		// Lock the SPI_IN register. Refer to section 8.6.1.5
-		tx_data[0] = COMMAND; // WRITE MASK = 0
-		tx_data[1] = SPI_IN_LOCK;
-		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+//	  uint8_t tx_data[2];
+//	  uint8_t rx_data[2];
+//
+//	  // Independent Mode Test
+//	  // Unlock the SPI_IN register. Refer to section 8.6.1.5
+//		tx_data[0] = COMMAND; // WRITE MASK = 0
+//		tx_data[1] = SPI_IN_UNLOCK;
+//		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+//
+//
+//		// Forwards
+//		tx_data[0] = SPI_IN; // WRITE MASK = 0
+//		tx_data[1] = S_EN_IN1;
+//		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+//
+//		HAL_Delay(1000);
+//
+//		// Turn off the DRV8244
+//		tx_data[0] = SPI_IN; // WRITE MASK = 0
+//		tx_data[1] = 0;
+//		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+//
+//		// Lock the SPI_IN register. Refer to section 8.6.1.5
+//		tx_data[0] = COMMAND; // WRITE MASK = 0
+//		tx_data[1] = SPI_IN_LOCK;
+//		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
 
 	  // TEST CODE END
 
@@ -444,7 +442,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.DMAContinuousRequests = ENABLE;
   hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_160CYCLES_5;
+  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_1CYCLE_5;
   hadc1.Init.OversamplingMode = DISABLE;
   hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_HIGH;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -825,7 +823,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, Actuator_A_EN_Pin|Actuator_B_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : Encoder_Pulse_A_Pin */
   GPIO_InitStruct.Pin = Encoder_Pulse_A_Pin;
@@ -857,7 +855,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = Actuator_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(Actuator_CS_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */

@@ -26,7 +26,7 @@
 
 #define BNO055_I2C_ADDR_HI 0x29
 #define BNO055_I2C_ADDR_LO 0x28
-#define BNO055_I2C_ADDR    BNO055_I2C_ADDR_LO
+#define BNO055_I2C_ADDR    BNO055_I2C_ADDR_HI
 
 #define BNO055_READ_TIMEOUT 100
 #define BNO055_WRITE_TIMEOUT 10
@@ -239,14 +239,6 @@ typedef struct
 
 typedef struct
 {
-  float w;
-  float x;
-  float y;
-  float z;
-} bno055_vector_t;
-
-typedef struct
-{
   uint8_t x;
   uint8_t x_sign;
   uint8_t y;
@@ -326,15 +318,6 @@ uint8_t bno055_rx();
 uint8_t bno055_queue_transaction();
 void bno055_get_all_values();
 
-
-
-bno055_vector_t bno055_getVectorAccelerometer();
-bno055_vector_t bno055_getVectorMagnetometer();
-bno055_vector_t bno055_getVectorGyroscope();
-bno055_vector_t bno055_getVectorEuler();
-bno055_vector_t bno055_getVectorLinearAccel();
-bno055_vector_t bno055_getVectorGravity();
-bno055_vector_t bno055_getVectorQuaternion();
 void bno055_setAxisMap(bno055_axis_map_t axis);
 
 #ifdef __cplusplus

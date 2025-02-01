@@ -42,7 +42,9 @@ HAL_StatusTypeDef init_lin_actuator()
 	// Test communication by reading the Device ID
 	tx_data[0] = (DEVICE_ID | READ_MASK);
 	tx_data[1] = DUMMY_DATA;
+	HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_RESET);
 	status = HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+	HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_SET);
 	if(status != HAL_OK)
 	{
 		return status;
