@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "modbus.h"
 #include "bno055_i2c.h"
+#include "vl53l0x.h"
 #include "lin_actuator.h"
 #include "error_codes.h"
 /* USER CODE END Includes */
@@ -102,6 +103,8 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, // Quarternion X
 		0xFFFF, // Quarternion Y
 		0xFFFF, // Quarternion Z
+
+		0xFFFF, // Lazer Distance
 
 		0xFFFF, // Actuator A Target
 		0xFFFF, // Actuator B Target
@@ -217,10 +220,10 @@ int main(void)
 //	  Error_Handler();
 //  }
 
-  if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[3]), 8) != HAL_OK)
-  {
-	  Error_Handler();
-  }
+//  if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[3]), 8) != HAL_OK)
+//  {
+//	  Error_Handler();
+//  }
 
 //  bno055_setup();
 //  bno055_setOperationModeNDOF();
@@ -230,7 +233,30 @@ int main(void)
 //  	{
 //  		Error_Handler();
 //  	}
+  	statInfo_t_VL53L0X status_info;
 
+  	if(initVL53L0X(1, &hi2c1) != 1)// TODO: clean up boolean return values in vl53l0x layer
+  	{
+  		Error_Handler();
+  	}
+
+  	// Configure the sensor for high accuracy and speed in 20 cm.
+  	if(setSignalRateLimit(200) != 1)
+  	{
+  		Error_Handler();
+  	}
+  	if(setVcselPulsePeriod(VcselPeriodPreRange, 10) != 1)
+  	{
+  		Error_Handler();
+  	}
+  	if(setVcselPulsePeriod(VcselPeriodFinalRange, 14) != 1)
+  	{
+  		Error_Handler();
+  	}
+  	if(setMeasurementTimingBudget(300 * 1000UL) != 1)
+  	{
+  		Error_Handler();
+  	}
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -241,7 +267,7 @@ int main(void)
    * 1: Actuator B
    * 2: Actuator C
    */
-  uint8_t target_actuator = 0;
+//  uint8_t target_actuator = 0;
 
   // Start the retrieval process for the bno055 (i2c in interrupt mode)
   //bno055_queue_transaction();
@@ -300,12 +326,15 @@ int main(void)
 		  }
 	  }
 
+	  // Collect Lazer Distance measurements
+	  holding_register_database[LASER_DISTANCE] = readRangeSingleMillimeters(&status_info);
+
 	  // Handle when an i2c Transaction has completed (i2c in interrupt mode)
 //	  if(bno055_rx())
 //	  {
 //		  bno055_queue_transaction();
 //	  }
-	  //bno055_get_all_values();
+//	  bno055_get_all_values();
 
 //	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
 //		 holding_register_database[9 + target_actuator] <= holding_register_database[56 + target_actuator] + ACTUATOR_TOLERANCE)

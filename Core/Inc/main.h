@@ -41,6 +41,7 @@ typedef enum holding_register_e
 	MODBUS_ID,
 	MB_BAUD_RATE,
 	AUTOPILOT,
+
 	ADC_0,
 	ADC_1,
 	ADC_2,
@@ -50,6 +51,7 @@ typedef enum holding_register_e
 	ADC_6,
 	ADC_7,
 	ADC_8,
+
 	ACCELEROMETER_X,
 	ACCELEROMETER_Y,
 	ACCELEROMETER_Z,
@@ -72,6 +74,9 @@ typedef enum holding_register_e
 	QUARTERNION_X,
 	QUARTERNION_Y,
 	QUARTERNION_Z,
+
+	LASER_DISTANCE,
+
 	ACTUATOR_A_TARGET,
 	ACTUATOR_B_TARGET,
 	ACTUATOR_C_TARGET,
