@@ -119,12 +119,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Actuator_C_EN_Pin GPIO_PIN_0
+#define Actuator_C_EN_GPIO_Port GPIOB
 #define Encoder_Pulse_A_Pin GPIO_PIN_13
 #define Encoder_Pulse_A_GPIO_Port GPIOB
 #define Encoder_Pulse_B_Pin GPIO_PIN_14
 #define Encoder_Pulse_B_GPIO_Port GPIOB
-#define Actuator_C_EN_Pin GPIO_PIN_8
-#define Actuator_C_EN_GPIO_Port GPIOA
 #define Actuator_A_EN_Pin GPIO_PIN_6
 #define Actuator_A_EN_GPIO_Port GPIOC
 #define Actuator_B_EN_Pin GPIO_PIN_7
@@ -133,6 +133,8 @@ void Error_Handler(void);
 #define Actuator_PWM_GPIO_Port GPIOA
 #define Actuator_CS_Pin GPIO_PIN_0
 #define Actuator_CS_GPIO_Port GPIOD
+#define IMU_Reset_Pin GPIO_PIN_1
+#define IMU_Reset_GPIO_Port GPIOD
 
 /* USER CODE BEGIN Private defines */
 
