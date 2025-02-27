@@ -37,18 +37,21 @@ volatile uint16_t start_index = 0;
 volatile uint16_t chunk_start_i = 0;
 volatile uint16_t chunk_end_i = 0;
 volatile uint16_t modbus_header = 1;
-volatile uint8_t rx_int = 0;
+volatile uint8_t uart_rx_int = 0;
+volatile uint8_t uart_tx_int = 0;
 
 // External Variables
 extern UART_HandleTypeDef huart1;
 extern DMA_HandleTypeDef hdma_adc1;
 extern DMA_HandleTypeDef hdma_i2c1_rx;
 extern DMA_HandleTypeDef hdma_usart1_rx;
+extern DMA_HandleTypeDef hdma_usart1_tx;
 extern uint16_t holding_register_database[];
-extern uint32_t* adc_buffer;
+extern uint8_t low_half_safe;
 extern ADC_HandleTypeDef hadc1;
 extern I2C_HandleTypeDef hi2c1;
-extern volatile uint8_t i2c_rx_int;
+
+extern volatile uint8_t i2c_uart_rx_int;
 
 // Private Functions
 uint16_t crc_16(uint8_t *data, uint8_t size);
@@ -124,7 +127,8 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 	{
 		chunk_start_i = chunk_end_i;  // Update the last position before copying new data
 
-		/* If the data in large and it is about to exceed the buffer size, we have to route it to the start of the buffer
+		/*
+		 * If the data is large and it is about to exceed the buffer size, we have to route it to the start of the buffer
 		 * This is to maintain the circular buffer
 		 * The old data in the main buffer will be overlapped
 		 */
@@ -137,7 +141,8 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 			memcpy ((uint8_t *)modbus_rx_buffer, (uint8_t *)(rx_chunk + datatocopy), chunk_end_i);  // copy the remaining data
 		}
 
-		/* if the current position + new data size is less than the main buffer
+		/*
+		 * If the current position + new data size is less than the main buffer
 		 * we will simply copy the data into the buffer and update the position
 		 */
 		else
@@ -162,16 +167,20 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 		{
 			/*
 			 * This is where the message officially completes being received
-			 * For Masters: Don'ts set up a reception, modbus stays in idle until you transmit a command again
+			 * For Masters: Don't set up a reception, modbus stays in idle until you transmit a command again
 			 * For Slaves: Don't set up reception since you will need to transmit a response first
 			 * Use modbus_set_rx(); as the user to re-enable receive mode
 			 */
 			modbus_header = 1;
-			rx_int = 1;
+			uart_rx_int = 1;
 		}
 	}
 }
 
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+	uart_tx_int = 1;
+}
 
 // Chunk Miss Error Handling Function
 int8_t handle_chunk_miss()
@@ -182,7 +191,7 @@ int8_t handle_chunk_miss()
 		{
 			// TODO: Log the chunk miss as an error
 			modbus_header = 1;
-			int8_t status = HAL_UART_Abort_IT(&huart1);
+			int8_t status = HAL_UART_Abort(&huart1);
 			if(status == HAL_OK)
 			{
 				status = modbus_set_rx();
@@ -371,10 +380,10 @@ int8_t modbus_poll_for_response(uint8_t size, uint16_t *rx_len)
 	{
 		return status;
 	}
-	while(!rx_int && (HAL_GetTick()) - time < response_interval);
-	if(rx_int)
+	while(!uart_rx_int && (HAL_GetTick()) - time < response_interval);
+	if(uart_rx_int)
 	{
-		rx_int = 0;
+		uart_rx_int = 0;
 		return HAL_OK;
 	}
 	else
@@ -408,7 +417,6 @@ void store_rx_buffer()
 		{
 			rx_buffer[i] = (get_rx_buffer(2 * i + 3) << 8) | get_rx_buffer(2 * i + 4);
 		}
-		// rx_buffer_len = i;
 	}
 }
 
@@ -449,18 +457,18 @@ int8_t return_holding_registers()
 		((last_register_address >= ADC_0) && (last_register_address <= ADC_8)))
 	{
 		// disable the ADC DMA Stream
-		if(HAL_DMA_Abort(&hdma_adc1) != HAL_OK)
-		{
-			return modbus_exception(MB_SLAVE_ERROR);
-		}
+//		if(HAL_DMA_Abort(&hdma_adc1) != HAL_OK)
+//		{
+//			return modbus_exception(MB_SLAVE_ERROR);
+//		}
 	}
-	uint8_t prim = 0;
+//	uint8_t prim = 0;
 	if(((first_register_address >= ACCELEROMETER_X) && (first_register_address <= QUARTERNION_Z)) ||
 		((last_register_address >= ACCELEROMETER_X) && (last_register_address <= QUARTERNION_Z)))
 	{
 		// disable I2C interrupts
-		prim = __get_PRIMASK();
-		__disable_irq();
+//		prim = __get_PRIMASK();
+//		__disable_irq();
 	}
 
 	// Append the Register Values
@@ -474,19 +482,19 @@ int8_t return_holding_registers()
 		((last_register_address >= ADC_0) && (last_register_address <= ADC_8)))
 	{
 		// enable the ADC DMA Stream
-		if(HAL_ADC_Start_DMA(&hadc1, adc_buffer, 9) != HAL_OK)
-		{
-			return modbus_exception(MB_SLAVE_ERROR);
-		}
+//		if(HAL_ADC_Start_DMA(&hadc1, adc_buffer, 9) != HAL_OK)
+//		{
+//			return modbus_exception(MB_SLAVE_ERROR);
+//		}
 	}
 	if(((first_register_address >= ACCELEROMETER_X) && (first_register_address <= QUARTERNION_Z)) ||
 		((last_register_address >= ACCELEROMETER_X) && (last_register_address <= QUARTERNION_Z)))
 	{
 		// enable I2C interrupts
-		if(prim == 0)
-		{
-			__enable_irq();
-		}
+//		if(prim == 0)
+//		{
+//			__enable_irq();
+//		}
 	}
 
 	return modbus_send(modbus_tx_buffer, index);
@@ -630,7 +638,21 @@ int8_t modbus_send(uint8_t *data, uint8_t size)
 	modbus_tx_buffer[size] = low_byte(crc);
 	modbus_tx_buffer[size + 1] = high_byte(crc);
 
-	return HAL_UART_Transmit(&huart1, modbus_tx_buffer, size + 2, 100);
+	uart_tx_int = 0;
+	time = HAL_GetTick();
+	int8_t status = HAL_UART_Transmit_DMA(&huart1, modbus_tx_buffer, size + 2);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+	while(!uart_tx_int && (HAL_GetTick() - time < 100));
+	if(HAL_GetTick() - time >= 100)
+	{
+		return HAL_TIMEOUT;
+	}
+	return HAL_OK;
+
+//	return HAL_UART_Transmit(&huart1, modbus_tx_buffer, size + 2, 100);
 }
 
 /*
@@ -638,16 +660,16 @@ int8_t modbus_send(uint8_t *data, uint8_t size)
  */
 uint8_t modbus_rx()
 {
-	if(rx_int)
+	if(uart_rx_int)
 	{
-		rx_int = 0;
+		uart_rx_int = 0;
 		return 1;
 	}
 	if(handle_chunk_miss() != HAL_OK)
 	{
-		// TODO: log the error when startup the UART back up
+		// TODO: log the error, reset the uart
 	}
-	return rx_int;
+	return uart_rx_int;
 }
 
 /*
@@ -722,7 +744,7 @@ int8_t modbus_change_baud_rate()
 			status = UART_SetConfig(&huart1);
 			if(status == HAL_OK)
 			{
-				//HAL_UART_Abort_IT(&huart1);
+				// Log error, reset UART
 			}
 			return MB_ILLEGAL_DATA_VALUE;
 			break;
@@ -732,7 +754,7 @@ int8_t modbus_change_baud_rate()
 	status = UART_SetConfig(&huart1);
 	if(status == HAL_OK)
 	{
-		//status = HAL_UART_Abort_IT(&huart1);
+		// Log error, reset UART
 	}
 
 	if(status != HAL_OK)

@@ -23,7 +23,6 @@
 /* USER CODE BEGIN Includes */
 #include "modbus.h"
 #include "bno055_i2c.h"
-#include "vl53l0x.h"
 #include "lin_actuator.h"
 #include "error_codes.h"
 /* USER CODE END Includes */
@@ -36,7 +35,6 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define TEST
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -49,6 +47,7 @@ ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_rx;
 
 SPI_HandleTypeDef hspi1;
 
@@ -57,13 +56,14 @@ TIM_HandleTypeDef htim14;
 
 UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
+DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
 
 pid_t pid_constraints;
 uint16_t pin_map[NUM_ACTUATORS];
 GPIO_TypeDef* port_map[NUM_ACTUATORS];
-
+volatile uint8_t low_half_safe;
 
 uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0x0001,	// MODBUS_ID
@@ -104,8 +104,6 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, // Quarternion Y
 		0xFFFF, // Quarternion Z
 
-		0xFFFF, // Lazer Distance
-
 		0xFFFF, // Actuator A Target
 		0xFFFF, // Actuator B Target
 		0xFFFF, // Actuator C Target
@@ -130,8 +128,8 @@ static void MX_ADC1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM1_Init(void);
-static void MX_USART1_UART_Init(void);
 static void MX_TIM14_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -139,9 +137,12 @@ static void MX_TIM14_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+
+
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[3]), 8);
+	low_half_safe = 0;
+//	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[3]), 8);
 	//HAL_ADC_Stop_DMA(&hadc1);
 
 //	for(uint8_t i = 0; i < 9; i++)
@@ -149,6 +150,12 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 //		holding_register_database[i + 3] = (uint16_t)raw_data[i];
 //	}
 }
+
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
+{
+	low_half_safe = 1;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -185,8 +192,8 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   MX_TIM1_Init();
-  MX_USART1_UART_Init();
   MX_TIM14_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
   // Initialize the pin mapping table
@@ -215,15 +222,16 @@ int main(void)
   pid_constraints.command_sat_prev = 0;// Previous saturated command
   pid_constraints.command_prev = 0;    // Previous command
 
-//  if(modbus_set_rx() != HAL_OK)
-//  {
-//	  Error_Handler();
-//  }
+  if(modbus_set_rx() != HAL_OK)
+  {
+	  Error_Handler();
+  }
 
-//  if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[3]), 8) != HAL_OK)
-//  {
-//	  Error_Handler();
-//  }
+  low_half_safe = 0;
+  if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[3]), 9) != HAL_OK)
+  {
+	  Error_Handler();
+  }
 
 //  bno055_setup();
 //  bno055_setOperationModeNDOF();
@@ -233,30 +241,6 @@ int main(void)
 //  	{
 //  		Error_Handler();
 //  	}
-  	statInfo_t_VL53L0X status_info;
-
-  	if(initVL53L0X(1, &hi2c1) != 1)// TODO: clean up boolean return values in vl53l0x layer
-  	{
-  		Error_Handler();
-  	}
-
-  	// Configure the sensor for high accuracy and speed in 20 cm.
-  	if(setSignalRateLimit(200) != 1)
-  	{
-  		Error_Handler();
-  	}
-  	if(setVcselPulsePeriod(VcselPeriodPreRange, 10) != 1)
-  	{
-  		Error_Handler();
-  	}
-  	if(setVcselPulsePeriod(VcselPeriodFinalRange, 14) != 1)
-  	{
-  		Error_Handler();
-  	}
-  	if(setMeasurementTimingBudget(300 * 1000UL) != 1)
-  	{
-  		Error_Handler();
-  	}
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -325,9 +309,6 @@ int main(void)
 			  //Error_Handler();
 		  }
 	  }
-
-	  // Collect Lazer Distance measurements
-	  holding_register_database[LASER_DISTANCE] = readRangeSingleMillimeters(&status_info);
 
 	  // Handle when an i2c Transaction has completed (i2c in interrupt mode)
 //	  if(bno055_rx())
@@ -429,7 +410,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSE;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV16;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
@@ -464,7 +445,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
   hadc1.Init.LowPowerAutoPowerOff = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.NbrOfConversion = 0;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
@@ -546,14 +527,6 @@ static void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_TEMPSENSOR;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
   sConfig.Channel = ADC_CHANNEL_8;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
@@ -563,8 +536,11 @@ static void MX_ADC1_Init(void)
   LL_ADC_REG_SetSequencerConfigurable(ADC1, LL_ADC_REG_SEQ_FIXED);
   LL_ADC_REG_SetSequencerScanDirection(ADC1, LL_ADC_REG_SEQ_SCAN_DIR_FORWARD);
 
-  LL_ADC_REG_SetSequencerChannels(ADC1, LL_ADC_CHANNEL_5 | LL_ADC_CHANNEL_6 | LL_ADC_CHANNEL_7 |
-		  LL_ADC_CHANNEL_17 | LL_ADC_CHANNEL_18 | LL_ADC_CHANNEL_20 | LL_ADC_CHANNEL_21 | LL_ADC_CHANNEL_22);
+  LL_ADC_REG_SetSequencerChannels(ADC1, LL_ADC_CHANNEL_0 | LL_ADC_CHANNEL_1 |
+		  	  	  	  	  	  	  	  	LL_ADC_CHANNEL_2 | LL_ADC_CHANNEL_3 |
+										LL_ADC_CHANNEL_4 | LL_ADC_CHANNEL_5 |
+										LL_ADC_CHANNEL_6 | LL_ADC_CHANNEL_7 |
+										LL_ADC_CHANNEL_8);
   uint32_t setup_adc_time = HAL_GetTick();
 
   while(LL_ADC_IsActiveFlag_CCRDY(ADC1) && HAL_GetTick() - setup_adc_time <= 100);
@@ -593,7 +569,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00000000;
+  hi2c1.Init.Timing = 0x00201D2C;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -832,6 +808,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
+  /* DMAMUX1_DMA1_CH4_5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMAMUX1_DMA1_CH4_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMAMUX1_DMA1_CH4_5_IRQn);
 
 }
 
