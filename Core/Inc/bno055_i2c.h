@@ -30,14 +30,14 @@ extern I2C_HandleTypeDef hi2c1;
 
 I2C_HandleTypeDef *_bno055_i2c_port;
 
-void bno055_delay(int time)
-{
-#ifdef FREERTOS_ENABLED
-  osDelay(time);
-#else
-  HAL_Delay(time);
-#endif
-}
+//void bno055_delay(int time)
+//{
+//#ifdef FREERTOS_ENABLED
+//  osDelay(time);
+//#else
+//  HAL_Delay(time);
+//#endif
+//}
 
 uint8_t bno055_writeData(uint8_t reg, uint8_t data)
 {

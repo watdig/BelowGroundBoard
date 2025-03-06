@@ -16,13 +16,16 @@
 #endif
 // #define FREERTOS_ENABLED true
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
+//#include <stdbool.h>
+//#include <stdint.h>
+//#include <stdio.h>
 
 #define START_BYTE 0xAA
 #define RESPONSE_BYTE 0xBB
 #define ERROR_BYTE 0xEE
+
+#define I2C_TX_BUFFER_SIZE 256
+#define I2C_RX_BUFFER_SIZE 256
 
 #define BNO055_I2C_ADDR_HI 0x29
 #define BNO055_I2C_ADDR_LO 0x28
@@ -288,37 +291,39 @@ enum bno055_axis_map_sign_t
   BNO055_AXIS_SIGN_NEGATIVE = 0x01
 };
 
-uint8_t bno055_writeData(uint8_t reg, uint8_t data);
-uint8_t bno055_readData(uint8_t reg, uint8_t *data, uint8_t len);
-void bno055_delay(int time);
+int8_t bno055_poll_transaction();
 
-uint8_t bno055_reset();
-bno055_opmode_t bno055_getOperationMode();
-void bno055_setOperationMode(bno055_opmode_t mode);
-void bno055_setOperationModeConfig();
-void bno055_setOperationModeNDOF();
-void bno055_enableExternalCrystal();
-void bno055_disableExternalCrystal();
-uint8_t bno055_setup();
+int8_t bno055_reset();
+int8_t bno055_getOperationMode(bno055_opmode_t *mode);
+int8_t bno055_setOperationMode(bno055_opmode_t mode);
+int8_t bno055_setOperationModeConfig();
+int8_t bno055_setOperationModeNDOF();
+int8_t bno055_enableExternalCrystal();
+int8_t bno055_disableExternalCrystal();
+int8_t bno055_setup();
 
-int8_t bno055_getTemp();
+int8_t bno055_getTemp(int8_t *temp);
 
-uint8_t bno055_getBootloaderRevision();
-uint8_t bno055_getSystemStatus();
-uint8_t bno055_getSystemError();
-int16_t bno055_getSWRevision();
+int8_t bno055_getBootloaderRevision(uint8_t *bootloader_revision);
+int8_t bno055_getSystemStatus(uint8_t *system_status);
+int8_t bno055_getSystemError(uint8_t *system_error);
+int8_t bno055_getSWRevision(int16_t *sw_revision);
 
-bno055_self_test_result_t bno055_getSelfTestResult();
-bno055_calibration_state_t bno055_getCalibrationState();
-bno055_calibration_data_t bno055_getCalibrationData();
-void bno055_setCalibrationData(bno055_calibration_data_t calData);
+int8_t bno055_getSelfTestResult(bno055_self_test_result_t* st_result);
+int8_t bno055_getCalibrationState(bno055_calibration_state_t *cal_state);
+int8_t bno055_getCalibrationData(bno055_calibration_data_t *cal_data);
+int8_t bno055_setCalibrationData(bno055_calibration_data_t *cal_data);
 
 
 uint8_t bno055_rx();
-uint8_t bno055_queue_transaction();
+int8_t bno055_queue_transaction();
 void bno055_get_all_values();
 
-void bno055_setAxisMap(bno055_axis_map_t axis);
+int8_t bno055_setAxisMap(bno055_axis_map_t *axis);
+
+int8_t monitor_i2c();
+int8_t handle_i2c_error(int8_t error_code);
+int8_t i2c_reset();
 
 #ifdef __cplusplus
   }

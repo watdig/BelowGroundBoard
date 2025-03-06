@@ -22,7 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "modbus.h"
-#include "bno055_i2c.h"
+#include "bno055.h"
 #include "lin_actuator.h"
 #include "error_codes.h"
 /* USER CODE END Includes */
@@ -48,6 +48,7 @@ DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
 DMA_HandleTypeDef hdma_i2c1_rx;
+DMA_HandleTypeDef hdma_i2c1_tx;
 
 SPI_HandleTypeDef hspi1;
 
@@ -68,6 +69,11 @@ volatile uint8_t low_half_safe;
 uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0x0001,	// MODBUS_ID
 		0x0003, // MB_BAUD_RATE
+		   100, // MB_TRANSMIT_TIMEOUT
+		   	 2, // MB_TRANSMIT_RETRIES
+		0x0000, // MB_ERRORS
+		0x0000, // I2C_ERRORS
+		0x0000, // I2C_SHUTDOWN
 		0x0000, // AUTOPILOT
 
 		0xFFFF, // ADC 0
@@ -104,6 +110,30 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, // Quarternion Y
 		0xFFFF, // Quarternion Z
 
+		0xFFFF, // Accelerometer X
+		0xFFFF, // Accelerometer Y
+		0xFFFF, // Accelerometer Z
+		0xFFFF, // Magnetometer X
+		0xFFFF, // Magnetometer Y
+		0xFFFF, // Magnetometer Z
+		0xFFFF, // Gyroscope X
+		0xFFFF, // Gyroscope Y
+		0xFFFF, // Gyroscope Z
+
+		0xFFFF, // Euler Heading
+		0xFFFF, // Euler Roll
+		0xFFFF, // Euler Pitch
+		0xFFFF, // Linear Acceleration X
+		0xFFFF, // Linear Acceleration Y
+		0xFFFF, // Linear Acceleration Z
+		0xFFFF, // Gravity X
+		0xFFFF, // Gravity Y
+		0xFFFF, // Gravity Z
+		0xFFFF, // Quarternion W
+		0xFFFF, // Quarternion X
+		0xFFFF, // Quarternion Y
+		0xFFFF, // Quarternion Z
+
 		0xFFFF, // Actuator A Target
 		0xFFFF, // Actuator B Target
 		0xFFFF, // Actuator C Target
@@ -115,9 +145,6 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, 0xFFFF, // Maximum Rate of Change
 };
 
-uint16_t adc_buffer[9]; //(uint32_t*)(&holding_register_database[3]);
-
-uint32_t* a_buffer = (uint32_t*)adc_buffer;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -142,7 +169,7 @@ static void MX_USART1_UART_Init(void);
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
 	low_half_safe = 0;
-//	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[3]), 8);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[ADC_0]), 9);
 	//HAL_ADC_Stop_DMA(&hadc1);
 
 //	for(uint8_t i = 0; i < 9; i++)
@@ -166,7 +193,9 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+	int8_t modbus_status = HAL_OK;
+	int8_t i2c_status = HAL_OK;
+	uint8_t modbus_tx_len = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -205,7 +234,6 @@ int main(void)
   port_map[1] = Actuator_B_EN_GPIO_Port;
   port_map[2] = Actuator_C_EN_GPIO_Port;
 
-
   // Initialize the PID constraints to defaults
   pid_constraints.Kp = 1;              // Proportional gain constant
   pid_constraints.Ki = 0.1;            // Integral gain constant
@@ -222,19 +250,19 @@ int main(void)
   pid_constraints.command_sat_prev = 0;// Previous saturated command
   pid_constraints.command_prev = 0;    // Previous command
 
-  if(modbus_set_rx() != HAL_OK)
-  {
-	  Error_Handler();
-  }
+//  if(modbus_set_rx() != HAL_OK)
+//  {
+//	  Error_Handler();
+//  }
 
   low_half_safe = 0;
-  if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[3]), 9) != HAL_OK)
-  {
-	  Error_Handler();
-  }
+//  if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[ADC_0]), 9) != HAL_OK)
+//  {
+//	  Error_Handler();
+//  }
 
-//  bno055_setup();
-//  bno055_setOperationModeNDOF();
+  bno055_setup();
+  bno055_setOperationModeNDOF();
 
 
 //  	if(init_lin_actuator() != HAL_OK)
@@ -258,10 +286,8 @@ int main(void)
 
   while (1)
   {
-
 	  if(modbus_rx())
 	  {
-		  int8_t status = 0;
 		  if(get_rx_buffer(0) == holding_register_database[0]) // Check Slave ID
 		  {
 			  switch(get_rx_buffer(1))
@@ -269,24 +295,24 @@ int main(void)
 				  case 0x03:
 				  {
 					  // Return holding registers
-					  status = return_holding_registers();
+					  modbus_status = return_holding_registers(&modbus_tx_len);
 					  break;
 				  }
 				  case 0x10:
 				  {
 					  // Write holding registers
-					  status = edit_multiple_registers();
+					  modbus_status = edit_multiple_registers(&modbus_tx_len);
 					  break;
 				  }
 				  default:
 				  {
-					  status = modbus_exception(MB_ILLEGAL_FUNCTION);
+					  modbus_status = modbus_exception(MB_ILLEGAL_FUNCTION);
 					  break;
 				  }
 			  }
-			  if(status != 0)
+			  if(modbus_status != 0)
 			  {
-				  // log error in a queue
+				  holding_register_database[MB_ERRORS] |= 1U << (modbus_status + (MB_FATAL_ERROR - 1));
 			  }
 		  }
 		  // Special case where you retrieve the modbus ID
@@ -296,25 +322,107 @@ int main(void)
 			(((get_rx_buffer(4) << 8) | get_rx_buffer(5)) == 1)) // # of registers to read = 1
 		  {
 
-			  status = return_holding_registers();
-			  if(status != 0)
+			  modbus_status = return_holding_registers(&modbus_tx_len);
+			  if(modbus_status != 0)
 			  {
-				  // log error in a queue
+				  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status - 1) + MB_FATAL_ERROR);
 			  }
 		  }
-		  status = modbus_set_rx();
-		  if(status != 0)
+		  modbus_status = modbus_set_rx();
+		  if(modbus_status != 0)
 		  {
-			  // log error in a queue
-			  //Error_Handler();
+			  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status - 1) + MB_FATAL_ERROR);
+		  }
+	  }
+	  modbus_status = monitor_modbus();
+	  if(modbus_status != HAL_OK && modbus_status != HAL_BUSY)
+	  {
+		  switch(modbus_status)
+		  {
+			  case MB_TX_TIMEOUT:
+			  {
+				  for(uint8_t i = 0; i < holding_register_database[MB_TRANSMIT_RETRIES]; i++)
+				  {
+					  modbus_status = modbus_send(modbus_tx_len);
+					  if(modbus_status != HAL_OK)
+					  {
+						  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status - 1) + MB_FATAL_ERROR);
+					  }
+				  }
+				  break;
+			  }
+			  case MB_RX_TIMEOUT:
+			  {
+				  // Error only relates to Modbus Master Nodes
+				  break;
+			  }
+			  case MB_UART_ERROR:
+			  {
+				  modbus_status = modbus_set_rx();
+				  if(modbus_status != 0)
+				  {
+					  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status - 1) + MB_FATAL_ERROR);
+				  }
+				  break;
+			  }
+			  case MB_FATAL_ERROR:
+			  {
+				  while(modbus_status != HAL_OK)
+				  {
+					  modbus_status = modbus_reset();
+				  }
+				  break;
+			  }
+			  default:
+			  {
+				  // Unknown error
+			  }
+		  }
+		  // Handle a MB_TX_TIMEOUT
+	  }
+
+	  if(!holding_register_database[I2C_SHUTDOWN])
+	  {
+		  if(bno055_rx())
+		  {
+			  i2c_status = bno055_queue_transaction();
+			  if(i2c_status != 0)
+			  {
+				  holding_register_database[I2C_ERRORS] |= 1U << ((i2c_status - 1) + I2C_FATAL_ERROR);
+			  }
+		  }
+
+		  i2c_status = monitor_i2c();
+		  if(i2c_status != HAL_OK && i2c_status != HAL_BUSY)
+		  {
+			  switch(i2c_status)
+			  {
+				  case I2C_TX_TIMEOUT:
+				  {
+					  break;
+				  }
+				  case I2C_RX_TIMEOUT:
+				  {
+					  break;
+				  }
+				  case I2C_ERROR:
+				  {
+					  break;
+				  }
+				  case I2C_FATAL_ERROR:
+				  {
+					  // Disable the I2C peripheral
+					  holding_register_database[I2C_SHUTDOWN] = 1;
+					  break;
+				  }
+				  default:
+				  {
+					  // Unknown error
+				  }
+			  }
 		  }
 	  }
 
-	  // Handle when an i2c Transaction has completed (i2c in interrupt mode)
-//	  if(bno055_rx())
-//	  {
-//		  bno055_queue_transaction();
-//	  }
 //	  bno055_get_all_values();
 
 //	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
@@ -445,16 +553,16 @@ static void MX_ADC1_Init(void)
   hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
   hadc1.Init.LowPowerAutoPowerOff = DISABLE;
-  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.NbrOfConversion = 0;
-  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = ENABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.DMAContinuousRequests = ENABLE;
-  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_1CYCLE_5;
+  hadc1.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_160CYCLES_5;
   hadc1.Init.OversamplingMode = DISABLE;
-  hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_HIGH;
+  hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_LOW;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -548,7 +656,6 @@ static void MX_ADC1_Init(void)
   {
 	  Error_Handler();
   }
-//  LL_ADC_SetCommonPathInternalCh(ADC1_COMMON, LL_ADC_PATH_INTERNAL_TEMPSENSOR);
   /* USER CODE END ADC1_Init 2 */
 
 }
