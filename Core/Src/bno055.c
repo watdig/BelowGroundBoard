@@ -40,6 +40,7 @@ uint8_t i2c_tx_buffer[I2C_TX_BUFFER_SIZE];
 uint8_t i2c_rx_buffer[I2C_RX_BUFFER_SIZE];
 
 uint8_t read_index;
+uint8_t bno055_address;
 uint32_t i2c_tx_time = 0;
 uint32_t i2c_rx_time = 0;
 volatile uint8_t i2c_tx_int = 1;
@@ -79,6 +80,8 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 {
 	// Do something
 	i2c_err_int = 1;
+	__HAL_I2C_DISABLE_IT(&hi2c1, I2C_IT_ERRI | I2C_IT_TCI | I2C_IT_STOPI |
+										 I2C_IT_NACKI | I2C_IT_ADDRI | I2C_IT_RXI | I2C_IT_TXI);
 }
 
 
@@ -91,28 +94,38 @@ void bno055_delay(uint32_t time)
 #endif
 }
 
-uint16_t accelScale = 100;
-uint16_t tempScale = 1;
-uint16_t angularRateScale = 16;
-uint16_t eulerScale = 16;
-uint16_t magScale = 16;
-uint16_t quaScale = (1<<14);    // 2^14
+int8_t bno055_init()
+{
+	int8_t status = HAL_OK;
 
+	// Set up the local IMU
+	bno055_address = BNO055_I2C_ADDR_LO << 1;
+	status = bno055_setup();
+	if(status != HAL_OK){return status;}
+
+	status = bno055_setOperationModeNDOF();
+	if(status != HAL_OK){return status;}
+
+	// Setup the remote IMU
+	bno055_address = BNO055_I2C_ADDR_HI << 1;
+	status = bno055_setup();
+	if(status != HAL_OK){return status;}
+
+	status = bno055_setOperationModeNDOF();
+	return status;
+}
 
 int8_t bno055_setPage(uint8_t page)
 {
 	i2c_tx_buffer[0] = BNO055_PAGE_ID;
 	i2c_tx_buffer[1] = page;
-	return bno055_write(i2c_tx_buffer, page);
-
-//	bno055_writeData(BNO055_PAGE_ID, page);
+	return bno055_write(i2c_tx_buffer, 2);
 }
 
 
 int8_t bno055_getOperationMode(bno055_opmode_t *mode)
 {
 	return bno055_read(BNO055_OPR_MODE, mode, 1);
-//	bno055_readData(BNO055_OPR_MODE, &mode, 1);
 }
 
 int8_t bno055_setOperationMode(bno055_opmode_t mode)
@@ -198,7 +211,6 @@ int8_t bno055_reset()
 	if(status != HAL_OK){return status;}
 
 	status = bno055_poll_transaction();
-//	status = bno055_writeData(BNO055_SYS_TRIGGER, 0x20);
 	if(status != HAL_OK){return status;}
 
 	bno055_delay(700);
@@ -215,7 +227,6 @@ int8_t bno055_getTemp(int8_t *temp)
 	if(status != HAL_OK){return status;}
 
 	return bno055_read(BNO055_TEMP, (uint8_t*) temp, 1);
-//	bno055_readData(BNO055_TEMP, &t, 1);
 }
 
 int8_t bno055_setup()
@@ -231,8 +242,6 @@ int8_t bno055_setup()
 	status = bno055_poll_transaction();
 	if(status != HAL_OK){return status;}
 
-//	status = bno055_readData(BNO055_CHIP_ID, &id, 1);
-
 	if(i2c_rx_buffer[0] != BNO055_ID)
 	{
 		return HAL_ERROR;
@@ -244,7 +253,6 @@ int8_t bno055_setup()
 	if(status != HAL_OK){return status;}
 
 	status = bno055_setExternalCrystalUse(0);
-//	status = bno055_writeData(BNO055_SYS_TRIGGER, 0x0); // TODO: change to external oscillator
 	if(status != HAL_OK){return status;}
 
 	// Select BNO055 config mode
@@ -290,9 +298,6 @@ int8_t bno055_getBootloaderRevision(uint8_t *bootloader_revision)
 
 	status = bno055_poll_transaction();
 	return status;
-//  uint8_t tmp;
-//  bno055_readData(BNO055_BL_REV_ID, &tmp, 1);
-//  return tmp;
 }
 
 int8_t bno055_getSystemStatus(uint8_t *system_status)
@@ -309,9 +314,6 @@ int8_t bno055_getSystemStatus(uint8_t *system_status)
 
 	status = bno055_poll_transaction();
 	return status;
-//  uint8_t tmp;
-//  bno055_readData(BNO055_SYS_STATUS, &tmp, 1);
-//  return tmp;
 }
 
 int8_t bno055_getSelfTestResult(bno055_self_test_result_t *st_result)
@@ -354,9 +356,6 @@ int8_t bno055_getSystemError(uint8_t *system_error)
 
 	status = bno055_poll_transaction();
 	return status;
-//  uint8_t tmp;
-//  bno055_readData(BNO055_SYS_ERR, &tmp, 1);
-//  return tmp;
 }
 
 int8_t bno055_getCalibrationState(bno055_calibration_state_t *cal_state)
@@ -382,13 +381,6 @@ int8_t bno055_getCalibrationState(bno055_calibration_state_t *cal_state)
 	cal_state->accel = (i2c_rx_buffer[0] >> 2) & 0x03;
 	cal_state->mag = (i2c_rx_buffer[0] >> 0) & 0x03;
 	return status;
-//  uint8_t calState = 0;
-//  bno055_readData(BNO055_CALIB_STAT, &calState, 1);
-//  cal.sys = (calState >> 6) & 0x03;
-//  cal.gyro = (calState >> 4) & 0x03;
-//  cal.accel = (calState >> 2) & 0x03;
-//  cal.mag = calState & 0x03;
-//  return cal;
 }
 
 int8_t bno055_getCalibrationData(bno055_calibration_data_t *cal_data)
@@ -466,7 +458,6 @@ int8_t bno055_setCalibrationData(bno055_calibration_data_t *cal_data)
 	if(status != HAL_OK){return status;}
 
 
-	// Assumes little endian processor
 	i2c_tx_buffer[0] = BNO055_ACC_OFFSET_X_LSB;
 	i2c_tx_buffer[1] = (cal_data->offset.accel.x >> 0) & 0xFF;
 	i2c_tx_buffer[2] = BNO055_ACC_OFFSET_X_MSB;
@@ -510,16 +501,19 @@ int8_t bno055_setCalibrationData(bno055_calibration_data_t *cal_data)
 	i2c_tx_buffer[37] = (cal_data->radius.accel >> 0) & 0xFF;
 	i2c_tx_buffer[38] = BNO055_ACC_RADIUS_MSB;
 	i2c_tx_buffer[39] = (cal_data->radius.accel >> 8) & 0xFF;
-	i2c_tx_buffer[36] = BNO055_MAG_RADIUS_LSB;
-	i2c_tx_buffer[37] = (cal_data->radius.mag >> 0) & 0xFF;
-	i2c_tx_buffer[38] = BNO055_MAG_RADIUS_MSB;
-	i2c_tx_buffer[39] = (cal_data->radius.mag >> 8) & 0xFF;
+	i2c_tx_buffer[40] = BNO055_MAG_RADIUS_LSB;
+	i2c_tx_buffer[41] = (cal_data->radius.mag >> 0) & 0xFF;
+	i2c_tx_buffer[42] = BNO055_MAG_RADIUS_MSB;
+	i2c_tx_buffer[43] = (cal_data->radius.mag >> 8) & 0xFF;
 
-	status = bno055_write(i2c_tx_buffer, 40);
-	if(status != HAL_OK){return status;}
+	for(uint8_t i = 0; i < 22; i++)
+	{
+		status = bno055_write(&i2c_tx_buffer[i * 2], 2);
+		if(status != HAL_OK){return status;}
 
-	status = bno055_poll_transaction();
-	if(status != HAL_OK){return status;}
+		status = bno055_poll_transaction();
+		if(status != HAL_OK){return status;}
+	}
 
 
 //	for(uint8_t i = 0; i < 3; i++)
@@ -551,7 +545,6 @@ void bno055_get_all_values()
 	for(uint8_t i = 0; i < NUM_VECTORS; i++)
 	{
 		bno055_read(mem_read_map[i].reg, &buffer[6 * i], mem_read_map[i].reg_len);
-//		bno055_readData(mem_read_map[i].reg, &buffer[6 * i], mem_read_map[i].reg_len);
 	}
 }
 
@@ -569,14 +562,24 @@ int8_t bno055_queue_transaction()
 {
 	uint8_t status = HAL_OK;
 	uint8_t* buffer = (uint8_t*)(&holding_register_database[12]);
-	i2c_tx_int = 0;
-	i2c_tx_time = HAL_GetTick();
-//	status = HAL_I2C_Mem_Read_IT(&hi2c1, BNO055_I2C_ADDR << 1, mem_read_map[read_index].reg,
-//			I2C_MEMADD_SIZE_8BIT, &buffer[6 * read_index], mem_read_map[read_index].reg_len);
-	status = HAL_I2C_Mem_Read_DMA(&hi2c1, BNO055_I2C_ADDR << 1, mem_read_map[read_index].reg,
+	i2c_rx_int = 0;
+	i2c_rx_time = HAL_GetTick();
+	status = HAL_I2C_Mem_Read_DMA(&hi2c1, bno055_address, mem_read_map[read_index].reg,
 			I2C_MEMADD_SIZE_8BIT, &buffer[6 * read_index], mem_read_map[read_index].reg_len);
-	if(status != HAL_OK){return status;}
-	read_index = (read_index == NUM_VECTORS - 1)? 0 : read_index + 1;
+	__HAL_DMA_DISABLE_IT(&hdma_i2c1_rx, DMA_IT_HT);
+
+	if(read_index == NUM_VECTORS - 1)
+	{
+		// Reset the read index
+		read_index = 0;
+		// Switch to the other IMU
+		bno055_address = (bno055_address == (BNO055_I2C_ADDR_LO << 1))? (BNO055_I2C_ADDR_HI << 1): (BNO055_I2C_ADDR_LO << 1);
+	}
+	else
+	{
+		// Increment the read index to read the next vector on the next run
+		read_index = read_index + 1;
+	}
 	return status;
 }
 
@@ -584,14 +587,17 @@ int8_t bno055_setAxisMap(bno055_axis_map_t *axis)
 {
 	int8_t status = HAL_OK;
 
-	i2c_rx_buffer[0] = BNO055_AXIS_MAP_CONFIG;
-	i2c_rx_buffer[1] = (axis->z << 4) | (axis->y << 2) | (axis->x);
-	i2c_rx_buffer[2] = BNO055_AXIS_MAP_SIGN;
-	i2c_rx_buffer[3] = (axis->x_sign << 2) | (axis->y_sign << 1) | (axis->z_sign);
-	status = bno055_write(i2c_rx_buffer, 4);
+	i2c_tx_buffer[0] = BNO055_AXIS_MAP_CONFIG;
+	i2c_tx_buffer[1] = (axis->z << 4) | (axis->y << 2) | (axis->x);
+
+	status = bno055_write(i2c_tx_buffer, 2);
 	if(status != HAL_OK){return status;}
 	status = bno055_poll_transaction();
 
+	i2c_tx_buffer[0] = BNO055_AXIS_MAP_SIGN;
+	i2c_tx_buffer[1] = (axis->x_sign << 2) | (axis->y_sign << 1) | (axis->z_sign);
+	status = bno055_write(i2c_tx_buffer, 2);
+	return status;
 //	i2c_rx_buffer[0] = BNO055_AXIS_MAP_CONFIG;
 //	i2c_rx_buffer[1] = (axis.z << 4) | (axis.y << 2) | (axis.x);
 //	status = bno055_write(i2c_rx_buffer, 2);
@@ -601,8 +607,6 @@ int8_t bno055_setAxisMap(bno055_axis_map_t *axis)
 //	i2c_rx_buffer[1] = (axis.x_sign << 2) | (axis.y_sign << 1) | (axis.z_sign);
 //	status = bno055_write(i2c_rx_buffer, 2);
 //	status |= bno055_poll_transaction();
-
-	return status;
 }
 
 int8_t monitor_i2c()
@@ -626,6 +630,7 @@ int8_t monitor_i2c()
 	{
 		if(HAL_GetTick() - i2c_tx_time >= 100)
 		{
+			i2c_tx_int = 1;
 			return handle_i2c_error(I2C_TX_TIMEOUT);
 		}
 		status = HAL_BUSY;
@@ -636,6 +641,7 @@ int8_t monitor_i2c()
 	{
 		if(HAL_GetTick() - i2c_rx_time >= 100)
 		{
+			i2c_rx_int = 1;
 			return handle_i2c_error(I2C_RX_TIMEOUT);
 		}
 		status = HAL_BUSY;
@@ -649,8 +655,7 @@ int8_t bno055_write(uint8_t *data, uint8_t len)
 	int8_t status = HAL_OK;
 	i2c_tx_int = 0;
 	i2c_tx_time = HAL_GetTick();
-	status = HAL_I2C_Master_Transmit(&hi2c1, BNO055_I2C_ADDR << 1, data, len, 100);
-//	status = HAL_I2C_Master_Transmit_DMA(&hi2c1, BNO055_I2C_ADDR << 1, data, len);
+	status = HAL_I2C_Master_Transmit_DMA(&hi2c1, bno055_address, data, len);
 	__HAL_DMA_DISABLE_IT(&hdma_i2c1_tx, DMA_IT_HT);
 
 	return status;
@@ -661,8 +666,7 @@ int8_t bno055_read(uint8_t reg, uint8_t *data, uint8_t len)
 	int8_t status = HAL_OK;
 	i2c_tx_int = 0;
 	i2c_tx_time = HAL_GetTick();
-	status = HAL_I2C_Master_Transmit(&hi2c1, BNO055_I2C_ADDR << 1, &reg, 1, 100);
-//	status = HAL_I2C_Master_Transmit_DMA(&hi2c1, BNO055_I2C_ADDR << 1, &reg, 1);
+	status = HAL_I2C_Master_Transmit_DMA(&hi2c1, bno055_address, &reg, 1);
 	__HAL_DMA_DISABLE_IT(&hdma_i2c1_tx, DMA_IT_HT);
 	if(status != HAL_OK){return status;}
 	status = bno055_poll_transaction();
@@ -670,8 +674,7 @@ int8_t bno055_read(uint8_t reg, uint8_t *data, uint8_t len)
 
 	i2c_rx_int = 0;
 	i2c_rx_time = HAL_GetTick();
-	status = HAL_I2C_Master_Receive(&hi2c1, BNO055_I2C_ADDR << 1, data, len, 100);
-//	status = HAL_I2C_Master_Receive_DMA(&hi2c1, BNO055_I2C_ADDR << 1, data, len);
+	status = HAL_I2C_Master_Receive_DMA(&hi2c1, bno055_address, data, len);
 	__HAL_DMA_DISABLE_IT(&hdma_i2c1_rx, DMA_IT_HT);
 
 	return status;
@@ -680,8 +683,7 @@ int8_t bno055_read(uint8_t reg, uint8_t *data, uint8_t len)
 int8_t i2c_reset()
 {
 	int8_t status = HAL_OK;
-	status = HAL_I2C_Master_Abort_IT(&hi2c1, BNO055_I2C_ADDR << 1);
-	status |= bno055_poll_transaction();
+	status = bno055_poll_transaction();
 	status |= HAL_I2C_DeInit(&hi2c1);
 	__I2C1_FORCE_RESET();
 	HAL_Delay(100);

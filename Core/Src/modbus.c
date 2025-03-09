@@ -59,7 +59,6 @@ extern DMA_HandleTypeDef hdma_usart1_rx;
 extern DMA_HandleTypeDef hdma_usart1_tx;
 extern uint16_t holding_register_database[];
 extern uint8_t low_half_safe;
-extern ADC_HandleTypeDef hadc1;
 extern I2C_HandleTypeDef hi2c1;
 extern volatile uint8_t i2c_uart_rx_int;
 
@@ -195,6 +194,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
 	uart_err_int = 1;
+	__HAL_UART_DISABLE_IT(&huart1, UART_IT_MASK);
 }
 
 
@@ -389,7 +389,8 @@ int8_t return_holding_registers(uint8_t* tx_len)
 	(*tx_len) = 3;
 
 	if(((first_register_address >= ADC_0) && (first_register_address <= ADC_8)) ||
-		((last_register_address >= ADC_0) && (last_register_address <= ADC_8)))
+		 ((last_register_address >= ADC_0) && (last_register_address <= ADC_8)) ||
+		 ((first_register_address < ADC_0) && (last_register_address > ADC_8)))
 	{
 		// disable the ADC DMA Stream
 //		if(HAL_DMA_Abort(&hdma_adc1) != HAL_OK)
@@ -398,8 +399,9 @@ int8_t return_holding_registers(uint8_t* tx_len)
 //		}
 	}
 //	uint8_t prim = 0;
-	if(((first_register_address >= ACCELEROMETER_X) && (first_register_address <= QUARTERNION_Z)) ||
-		((last_register_address >= ACCELEROMETER_X) && (last_register_address <= QUARTERNION_Z)))
+	if(((first_register_address >= ACCELEROMETER_X) && (first_register_address <= REMOTE_QUARTERNION_Z)) ||
+		 ((last_register_address >= ACCELEROMETER_X) && (last_register_address <= REMOTE_QUARTERNION_Z)) ||
+		 ((first_register_address < ACCELEROMETER_X) && (last_register_address > REMOTE_QUARTERNION_Z)))
 	{
 		// disable I2C interrupts
 //		prim = __get_PRIMASK();
@@ -414,7 +416,8 @@ int8_t return_holding_registers(uint8_t* tx_len)
 	}
 
 	if(((first_register_address >= ADC_0) && (first_register_address <= ADC_8)) ||
-		((last_register_address >= ADC_0) && (last_register_address <= ADC_8)))
+		 ((last_register_address >= ADC_0) && (last_register_address <= ADC_8)) ||
+		 ((first_register_address < ADC_0) && (last_register_address > ADC_8)))
 	{
 		// enable the ADC DMA Stream
 //		if(HAL_ADC_Start_DMA(&hadc1, adc_buffer, 9) != HAL_OK)
@@ -422,8 +425,9 @@ int8_t return_holding_registers(uint8_t* tx_len)
 //			return modbus_exception(MB_SLAVE_ERROR);
 //		}
 	}
-	if(((first_register_address >= ACCELEROMETER_X) && (first_register_address <= QUARTERNION_Z)) ||
-		((last_register_address >= ACCELEROMETER_X) && (last_register_address <= QUARTERNION_Z)))
+	if(((first_register_address >= ACCELEROMETER_X) && (first_register_address <= REMOTE_QUARTERNION_Z)) ||
+		 ((last_register_address >= ACCELEROMETER_X) && (last_register_address <= REMOTE_QUARTERNION_Z)) ||
+		 ((first_register_address < ACCELEROMETER_X) && (last_register_address > REMOTE_QUARTERNION_Z)))
 	{
 		// enable I2C interrupts
 //		if(prim == 0)
@@ -455,8 +459,9 @@ int8_t edit_multiple_registers(uint8_t *tx_len)
 	}
 
 	// Protect Read only values
-	if(((first_register_address >= ADC_0) && (first_register_address <= QUARTERNION_Z)) ||
-		((last_register_address >= ADC_0) && (last_register_address <= QUARTERNION_Z)))
+	if(((first_register_address >= ADC_0) && (first_register_address <= REMOTE_QUARTERNION_Z)) ||
+		 ((last_register_address >= ADC_0) && (last_register_address <= REMOTE_QUARTERNION_Z)) ||
+		 ((first_register_address < ADC_0) && (last_register_address > REMOTE_QUARTERNION_Z)))
 	{
 		// Ensure that sensor values are restricted to read-only
 		return modbus_exception(MB_ILLEGAL_FUNCTION);
@@ -533,19 +538,35 @@ void handle_range(uint16_t holding_register)
 		}
 		case MB_TRANSMIT_TIMEOUT:
 		{
-			if(holding_register_database[holding_register] < 1000)
+			if(holding_register_database[holding_register] < 5)
+			{
+				holding_register_database[holding_register] = 5;
+			}
+			else if(holding_register_database[holding_register] > 1000)
 			{
 				holding_register_database[holding_register] = 1000;
 			}
-			else if(holding_register_database[holding_register] > 5)
+			break;
+		}
+		case MB_TRANSMIT_RETRIES:
+		{
+			if(holding_register_database[holding_register] > 5)
 			{
 				holding_register_database[holding_register] = 5;
 			}
 			break;
 		}
+		case MB_ERRORS:
+		{
+			if(holding_register_database[holding_register] > 0x3FF)
+			{
+				holding_register_database[holding_register] = 0x3FF;
+			}
+			break;
+		}
 		case I2C_ERRORS:
 		{
-			if(holding_register_database[holding_register] < 0x7F)
+			if(holding_register_database[holding_register] > 0x7F)
 			{
 				holding_register_database[holding_register] = 0x7F;
 			}
@@ -693,6 +714,39 @@ int8_t monitor_modbus()
 
 // General Modbus Control Functions ------------------------------------------------------------
 
+int8_t modbus_startup()
+{
+	int8_t status = HAL_RS485Ex_Init(&huart1, UART_DE_POLARITY_HIGH, 0, 0);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+	status = HAL_UARTEx_SetTxFifoThreshold(&huart1, UART_TXFIFO_THRESHOLD_1_8);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+	status = HAL_UARTEx_SetRxFifoThreshold(&huart1, UART_RXFIFO_THRESHOLD_1_8);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+	status = HAL_UARTEx_DisableFifoMode(&huart1);
+	return status;
+}
+
+int8_t modbus_shutdown()
+{
+	int8_t status = HAL_UART_AbortReceive(&huart1);
+	if(status != HAL_OK)
+	{
+		return status;
+	}
+	status = HAL_UART_DeInit(&huart1);
+
+	return status;
+}
+
 int8_t modbus_change_baud_rate()
 {
 	int8_t status = 0;
@@ -746,14 +800,13 @@ int8_t modbus_change_baud_rate()
 			status = UART_SetConfig(&huart1);
 			if(status == HAL_OK)
 			{
-				// Log error, reset UART
 				status = modbus_reset();
 				if(status != HAL_OK)
 				{
 					return status;
 				}
 			}
-			return MB_ILLEGAL_DATA_VALUE;
+			return handle_modbus_error(RANGE_ERROR);
 		}
 	}
 	status = UART_SetConfig(&huart1);

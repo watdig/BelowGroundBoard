@@ -28,6 +28,17 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32c0xx_hal.h"
+#include "stm32c0xx_ll_adc.h"
+#include "stm32c0xx_ll_bus.h"
+#include "stm32c0xx_ll_cortex.h"
+#include "stm32c0xx_ll_rcc.h"
+#include "stm32c0xx_ll_system.h"
+#include "stm32c0xx_ll_utils.h"
+#include "stm32c0xx_ll_pwr.h"
+#include "stm32c0xx_ll_gpio.h"
+#include "stm32c0xx_ll_dma.h"
+
+#include "stm32c0xx_ll_exti.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -124,6 +135,8 @@ typedef enum holding_register_e
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
+#define USE_TIMEOUT 1
+
 #define NUM_ACTUATORS 3
 #define ACTUATOR_TOLERANCE 15 // TODO: relate this adc value to mm with some equation
 #define ACTUATOR_TRANSIENT_DELAY 150 // TODO: figure out a safe value for this

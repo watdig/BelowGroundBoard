@@ -29,7 +29,6 @@
 
 #define BNO055_I2C_ADDR_HI 0x29
 #define BNO055_I2C_ADDR_LO 0x28
-#define BNO055_I2C_ADDR    BNO055_I2C_ADDR_LO
 
 #define BNO055_READ_TIMEOUT 100
 #define BNO055_WRITE_TIMEOUT 10
@@ -291,6 +290,7 @@ enum bno055_axis_map_sign_t
   BNO055_AXIS_SIGN_NEGATIVE = 0x01
 };
 
+int8_t bno055_init();
 int8_t bno055_poll_transaction();
 
 int8_t bno055_reset();

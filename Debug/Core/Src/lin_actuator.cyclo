@@ -1,4 +1,4 @@
 ../Core/Src/lin_actuator.c:31:19:init_lin_actuator	7
-../Core/Src/lin_actuator.c:89:6:actuate_pwm	5
-../Core/Src/lin_actuator.c:149:6:actuate_spi	4
-../Core/Src/lin_actuator.c:187:7:pid_step	5
+../Core/Src/lin_actuator.c:93:6:actuate_pwm	5
+../Core/Src/lin_actuator.c:153:6:actuate_spi	4
+../Core/Src/lin_actuator.c:191:7:pid_step	5

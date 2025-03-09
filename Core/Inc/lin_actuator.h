@@ -13,7 +13,7 @@
 #define DUMMY_DATA 0x00
 
 // DEVICE_ID
-#define DRV8244_ID 			0x42
+#define DRV8244_Q1_ID 			0x46
 
 // FAULT_SUMMARY
 #define SPI_ERR				0b10000000

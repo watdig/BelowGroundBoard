@@ -15,7 +15,6 @@
  * MB_MASTER: Include modbus master functions and capabilities
  * MB_SLAVE: Include modbus slave functions and capabilities
  */
-#define MB_MASTER
 #define MB_SLAVE
 
 #define RX_BUFFER_SIZE 125
@@ -65,6 +64,8 @@ int8_t monitor_modbus();
 int8_t modbus_reset();
 
 // General Modbus Control Functions ------------------------------------------------------------
+int8_t modbus_startup();
+int8_t modbus_shutdown();
 int8_t modbus_change_baud_rate();
 int8_t modbus_set_baud_rate(uint8_t baud_rate);
 int8_t modbus_get_baud_rate(uint8_t *baud_rate);

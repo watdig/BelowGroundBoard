@@ -25,6 +25,7 @@
 #include "bno055.h"
 #include "lin_actuator.h"
 #include "error_codes.h"
+#include "sensor_adc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -39,12 +40,9 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-ADC_HandleTypeDef hadc1;
-DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
 DMA_HandleTypeDef hdma_i2c1_rx;
@@ -64,7 +62,6 @@ DMA_HandleTypeDef hdma_usart1_tx;
 pid_t pid_constraints;
 uint16_t pin_map[NUM_ACTUATORS];
 GPIO_TypeDef* port_map[NUM_ACTUATORS];
-volatile uint8_t low_half_safe;
 
 uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0x0001,	// MODBUS_ID
@@ -110,15 +107,15 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, // Quarternion Y
 		0xFFFF, // Quarternion Z
 
-		0xFFFF, // Accelerometer X
-		0xFFFF, // Accelerometer Y
-		0xFFFF, // Accelerometer Z
-		0xFFFF, // Magnetometer X
-		0xFFFF, // Magnetometer Y
-		0xFFFF, // Magnetometer Z
-		0xFFFF, // Gyroscope X
-		0xFFFF, // Gyroscope Y
-		0xFFFF, // Gyroscope Z
+		0xFFFF, // Remote Accelerometer X
+		0xFFFF, // Remote Accelerometer Y
+		0xFFFF, // Remote Accelerometer Z
+		0xFFFF, // Remote Magnetometer X
+		0xFFFF, // Remote Magnetometer Y
+		0xFFFF, // Remote Magnetometer Z
+		0xFFFF, // Remote Gyroscope X
+		0xFFFF, // Remote Gyroscope Y
+		0xFFFF, // Remote Gyroscope Z
 
 		0xFFFF, // Euler Heading
 		0xFFFF, // Euler Roll
@@ -163,25 +160,6 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-
-
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
-{
-	low_half_safe = 0;
-	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[ADC_0]), 9);
-	//HAL_ADC_Stop_DMA(&hadc1);
-
-//	for(uint8_t i = 0; i < 9; i++)
-//	{
-//		holding_register_database[i + 3] = (uint16_t)raw_data[i];
-//	}
-}
-
-void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
-{
-	low_half_safe = 1;
-}
 
 /* USER CODE END 0 */
 
@@ -250,19 +228,20 @@ int main(void)
   pid_constraints.command_sat_prev = 0;// Previous saturated command
   pid_constraints.command_prev = 0;    // Previous command
 
-//  if(modbus_set_rx() != HAL_OK)
-//  {
-//	  Error_Handler();
-//  }
+  if(modbus_set_rx() != HAL_OK)
+  {
+	  Error_Handler();
+  }
 
-  low_half_safe = 0;
-//  if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)(&holding_register_database[ADC_0]), 9) != HAL_OK)
-//  {
-//	  Error_Handler();
-//  }
-
-  bno055_setup();
-  bno055_setOperationModeNDOF();
+  /* Perform ADC activation procedure to make it ready to convert. */
+  ADC_Activate();
+  if ((LL_ADC_IsEnabled(ADC1) == 1)               &&
+	  (LL_ADC_IsDisableOngoing(ADC1) == 0)        &&
+	  (LL_ADC_REG_IsConversionOngoing(ADC1) == 0))
+  {
+	  LL_ADC_REG_StartConversion(ADC1);
+  }
+//  bno055_init();
 
 
 //  	if(init_lin_actuator() != HAL_OK)
@@ -280,9 +259,6 @@ int main(void)
    * 2: Actuator C
    */
 //  uint8_t target_actuator = 0;
-
-  // Start the retrieval process for the bno055 (i2c in interrupt mode)
-  //bno055_queue_transaction();
 
   while (1)
   {
@@ -378,52 +354,49 @@ int main(void)
 				  // Unknown error
 			  }
 		  }
-		  // Handle a MB_TX_TIMEOUT
 	  }
 
-	  if(!holding_register_database[I2C_SHUTDOWN])
-	  {
-		  if(bno055_rx())
-		  {
-			  i2c_status = bno055_queue_transaction();
-			  if(i2c_status != 0)
-			  {
-				  holding_register_database[I2C_ERRORS] |= 1U << ((i2c_status - 1) + I2C_FATAL_ERROR);
-			  }
-		  }
-
-		  i2c_status = monitor_i2c();
-		  if(i2c_status != HAL_OK && i2c_status != HAL_BUSY)
-		  {
-			  switch(i2c_status)
-			  {
-				  case I2C_TX_TIMEOUT:
-				  {
-					  break;
-				  }
-				  case I2C_RX_TIMEOUT:
-				  {
-					  break;
-				  }
-				  case I2C_ERROR:
-				  {
-					  break;
-				  }
-				  case I2C_FATAL_ERROR:
-				  {
-					  // Disable the I2C peripheral
-					  holding_register_database[I2C_SHUTDOWN] = 1;
-					  break;
-				  }
-				  default:
-				  {
-					  // Unknown error
-				  }
-			  }
-		  }
-	  }
-
-//	  bno055_get_all_values();
+//	  if(!holding_register_database[I2C_SHUTDOWN])
+//	  {
+//		  if(bno055_rx())
+//		  {
+//			  i2c_status = bno055_queue_transaction();
+//			  if(i2c_status != 0)
+//			  {
+//				  holding_register_database[I2C_ERRORS] |= 1U << ((i2c_status - 1) + I2C_FATAL_ERROR);
+//			  }
+//		  }
+//
+//		  i2c_status = monitor_i2c();
+//		  if(i2c_status != HAL_OK && i2c_status != HAL_BUSY)
+//		  {
+//			  switch(i2c_status)
+//			  {
+//				  case I2C_TX_TIMEOUT:
+//				  {
+//					  break;
+//				  }
+//				  case I2C_RX_TIMEOUT:
+//				  {
+//					  break;
+//				  }
+//				  case I2C_ERROR:
+//				  {
+//					  break;
+//				  }
+//				  case I2C_FATAL_ERROR:
+//				  {
+//					  // Disable the I2C peripheral
+//					  holding_register_database[I2C_SHUTDOWN] = 1;
+//					  break;
+//				  }
+//				  default:
+//				  {
+//					  // Unknown error
+//				  }
+//			  }
+//		  }
+//	  }
 
 //	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
 //		 holding_register_database[9 + target_actuator] <= holding_register_database[56 + target_actuator] + ACTUATOR_TOLERANCE)
@@ -449,13 +422,10 @@ int main(void)
 	  // TEST CODE START
 
 	  // DRV8244 Testing
-	  // PWM Actuator Test
+//	  // PWM Actuator Test
 //	  HAL_GPIO_WritePin(Actuator_A_EN_GPIO_Port, Actuator_A_EN_Pin, GPIO_PIN_SET);
 //	  TIM1->CCR1 = 10;
-//	  HAL_Delay(1000);
-//	  TIM1->CCR1 = 0;
-//	  HAL_GPIO_WritePin(Actuator_A_EN_GPIO_Port, Actuator_A_EN_Pin, GPIO_PIN_RESET);
-
+//
 //	  uint8_t tx_data[2];
 //	  uint8_t rx_data[2];
 //
@@ -463,25 +433,39 @@ int main(void)
 //	  // Unlock the SPI_IN register. Refer to section 8.6.1.5
 //		tx_data[0] = COMMAND; // WRITE MASK = 0
 //		tx_data[1] = SPI_IN_UNLOCK;
+//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_RESET);
 //		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_SET);
 //
 //
 //		// Forwards
 //		tx_data[0] = SPI_IN; // WRITE MASK = 0
 //		tx_data[1] = S_EN_IN1;
+//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_RESET);
 //		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_SET);
 //
 //		HAL_Delay(1000);
 //
 //		// Turn off the DRV8244
 //		tx_data[0] = SPI_IN; // WRITE MASK = 0
 //		tx_data[1] = 0;
+//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_RESET);
 //		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_SET);
 //
 //		// Lock the SPI_IN register. Refer to section 8.6.1.5
 //		tx_data[0] = COMMAND; // WRITE MASK = 0
 //		tx_data[1] = SPI_IN_LOCK;
+//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_RESET);
 //		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
+//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_SET);
+//
+//		TIM1->CCR1 = 0;
+//		HAL_Delay(100);
+//		HAL_GPIO_WritePin(Actuator_A_EN_GPIO_Port, Actuator_A_EN_Pin, GPIO_PIN_RESET);
+//
+//		HAL_Delay(10000);
 
 	  // TEST CODE END
 
@@ -538,124 +522,198 @@ static void MX_ADC1_Init(void)
 
   /* USER CODE END ADC1_Init 0 */
 
-  ADC_ChannelConfTypeDef sConfig = {0};
+  LL_ADC_InitTypeDef ADC_InitStruct = {0};
+  LL_ADC_REG_InitTypeDef ADC_REG_InitStruct = {0};
+
+  LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+
+  /** Initializes the peripherals clocks
+  */
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
+  PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* Peripheral clock enable */
+  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_ADC);
+
+  LL_IOP_GRP1_EnableClock(LL_IOP_GRP1_PERIPH_GPIOA);
+  /**ADC1 GPIO Configuration
+  PA0   ------> ADC1_IN0
+  PA1   ------> ADC1_IN1
+  PA2   ------> ADC1_IN2
+  PA3   ------> ADC1_IN3
+  PA4   ------> ADC1_IN4
+  PA5   ------> ADC1_IN5
+  PA6   ------> ADC1_IN6
+  PA7   ------> ADC1_IN7
+  PA8   ------> ADC1_IN8
+  */
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_0;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_1;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_2;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_3;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_4;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_5;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_6;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_7;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_8;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* ADC1 DMA Init */
+
+  /* ADC1 Init */
+  LL_DMA_SetPeriphRequest(DMA1, LL_DMA_CHANNEL_1, LL_DMAMUX_REQ_ADC1);
+
+  LL_DMA_SetDataTransferDirection(DMA1, LL_DMA_CHANNEL_1, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
+
+  LL_DMA_SetChannelPriorityLevel(DMA1, LL_DMA_CHANNEL_1, LL_DMA_PRIORITY_LOW);
+
+  LL_DMA_SetMode(DMA1, LL_DMA_CHANNEL_1, LL_DMA_MODE_CIRCULAR);
+
+  LL_DMA_SetPeriphIncMode(DMA1, LL_DMA_CHANNEL_1, LL_DMA_PERIPH_NOINCREMENT);
+
+  LL_DMA_SetMemoryIncMode(DMA1, LL_DMA_CHANNEL_1, LL_DMA_MEMORY_INCREMENT);
+
+  LL_DMA_SetPeriphSize(DMA1, LL_DMA_CHANNEL_1, LL_DMA_PDATAALIGN_HALFWORD);
+
+  LL_DMA_SetMemorySize(DMA1, LL_DMA_CHANNEL_1, LL_DMA_MDATAALIGN_HALFWORD);
+
+  /* ADC1 interrupt Init */
+  NVIC_SetPriority(ADC1_IRQn, 0);
+  NVIC_EnableIRQ(ADC1_IRQn);
 
   /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* Set DMA transfer addresses of source and destination */
+  LL_DMA_ConfigAddresses(DMA1, LL_DMA_CHANNEL_1, LL_ADC_DMA_GetRegAddr(ADC1, LL_ADC_DMA_REG_REGULAR_DATA),
+		  (uint32_t)&holding_register_database[ADC_0],
+		  LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
+
+  /* Set DMA transfer size */
+  LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_1, 9);
+
+  /* Enable DMA transfer interruption: transfer complete */
+  LL_DMA_EnableIT_TC(DMA1, LL_DMA_CHANNEL_1);
+
+  /* Enable DMA transfer interruption: transfer half complete */
+  LL_DMA_EnableIT_HT(DMA1, LL_DMA_CHANNEL_1);
+
+  /* Enable DMA transfer interruption: transfer error */
+  LL_DMA_EnableIT_TE(DMA1, LL_DMA_CHANNEL_1);
+
+  /* Enable the DMA transfer */
+  LL_DMA_EnableChannel(DMA1, LL_DMA_CHANNEL_1);
   /* USER CODE END ADC1_Init 1 */
 
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
   */
-  hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV1;
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.ScanConvMode = ADC_SCAN_SEQ_FIXED;
-  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
-  hadc1.Init.LowPowerAutoWait = DISABLE;
-  hadc1.Init.LowPowerAutoPowerOff = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
-  hadc1.Init.NbrOfConversion = 0;
-  hadc1.Init.DiscontinuousConvMode = ENABLE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.DMAContinuousRequests = ENABLE;
-  hadc1.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
-  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_160CYCLES_5;
-  hadc1.Init.OversamplingMode = DISABLE;
-  hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_LOW;
-  if (HAL_ADC_Init(&hadc1) != HAL_OK)
-  {
-    Error_Handler();
-  }
 
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_0;
-  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
+   #define ADC_CHANNEL_CONF_RDY_TIMEOUT_MS ( 1U)
+   #if (USE_TIMEOUT == 1)
+   uint32_t Timeout ; /* Variable used for Timeout management */
+   #endif /* USE_TIMEOUT */
 
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_1;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_2;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_3;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_4;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_5;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_6;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_7;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_8;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN ADC1_Init 2 */
+  ADC_InitStruct.Clock = LL_ADC_CLOCK_SYNC_PCLK_DIV2;
+  ADC_InitStruct.Resolution = LL_ADC_RESOLUTION_12B;
+  ADC_InitStruct.DataAlignment = LL_ADC_DATA_ALIGN_RIGHT;
+  ADC_InitStruct.LowPowerMode = LL_ADC_LP_MODE_NONE;
+  LL_ADC_Init(ADC1, &ADC_InitStruct);
   LL_ADC_REG_SetSequencerConfigurable(ADC1, LL_ADC_REG_SEQ_FIXED);
+  ADC_REG_InitStruct.TriggerSource = LL_ADC_REG_TRIG_SOFTWARE;
+  ADC_REG_InitStruct.SequencerLength = 0;
+  ADC_REG_InitStruct.SequencerDiscont = LL_ADC_REG_SEQ_DISCONT_DISABLE;
+  ADC_REG_InitStruct.ContinuousMode = LL_ADC_REG_CONV_CONTINUOUS;
+  ADC_REG_InitStruct.DMATransfer = LL_ADC_REG_DMA_TRANSFER_UNLIMITED;
+  ADC_REG_InitStruct.Overrun = LL_ADC_REG_OVR_DATA_OVERWRITTEN;
+  LL_ADC_REG_Init(ADC1, &ADC_REG_InitStruct);
   LL_ADC_REG_SetSequencerScanDirection(ADC1, LL_ADC_REG_SEQ_SCAN_DIR_FORWARD);
+  LL_ADC_SetOverSamplingScope(ADC1, LL_ADC_OVS_DISABLE);
+  LL_ADC_SetTriggerFrequencyMode(ADC1, LL_ADC_CLOCK_FREQ_MODE_LOW);
+  LL_ADC_REG_SetSequencerChAdd(ADC1, LL_ADC_CHANNEL_0|LL_ADC_CHANNEL_1
+                              |LL_ADC_CHANNEL_2|LL_ADC_CHANNEL_3
+                              |LL_ADC_CHANNEL_4|LL_ADC_CHANNEL_5
+                              |LL_ADC_CHANNEL_6|LL_ADC_CHANNEL_7
+                              |LL_ADC_CHANNEL_8);
 
-  LL_ADC_REG_SetSequencerChannels(ADC1, LL_ADC_CHANNEL_0 | LL_ADC_CHANNEL_1 |
-		  	  	  	  	  	  	  	  	LL_ADC_CHANNEL_2 | LL_ADC_CHANNEL_3 |
-										LL_ADC_CHANNEL_4 | LL_ADC_CHANNEL_5 |
-										LL_ADC_CHANNEL_6 | LL_ADC_CHANNEL_7 |
-										LL_ADC_CHANNEL_8);
-  uint32_t setup_adc_time = HAL_GetTick();
+   /* Poll for ADC channel configuration ready */
+   #if (USE_TIMEOUT == 1)
+   Timeout = ADC_CHANNEL_CONF_RDY_TIMEOUT_MS;
+   #endif /* USE_TIMEOUT */
+   while (LL_ADC_IsActiveFlag_CCRDY(ADC1) == 0)
+     {
+   #if (USE_TIMEOUT == 1)
+   /* Check Systick counter flag to decrement the time-out value */
+   if (LL_SYSTICK_IsActiveCounterFlag())
+     {
+   if(Timeout-- == 0)
+         {
+   Error_Handler();
+         }
+     }
+   #endif /* USE_TIMEOUT */
+     }
+   /* Clear flag ADC channel configuration ready */
+   LL_ADC_ClearFlag_CCRDY(ADC1);
+  LL_ADC_SetSamplingTimeCommonChannels(ADC1, LL_ADC_SAMPLINGTIME_COMMON_1, LL_ADC_SAMPLINGTIME_160CYCLES_5);
+  LL_ADC_DisableIT_EOC(ADC1);
+  LL_ADC_DisableIT_EOS(ADC1);
 
-  while(LL_ADC_IsActiveFlag_CCRDY(ADC1) && HAL_GetTick() - setup_adc_time <= 100);
-  if(!LL_ADC_IsActiveFlag_CCRDY(ADC1))
-  {
-	  Error_Handler();
-  }
+   /* Enable ADC internal voltage regulator */
+   LL_ADC_EnableInternalRegulator(ADC1);
+   /* Delay for ADC internal voltage regulator stabilization. */
+   /* Compute number of CPU cycles to wait for, from delay in us. */
+   /* Note: Variable divided by 2 to compensate partially */
+   /* CPU processing cycles (depends on compilation optimization). */
+   /* Note: If system core clock frequency is below 200kHz, wait time */
+   /* is only a few CPU processing cycles. */
+   uint32_t wait_loop_index;
+   wait_loop_index = ((LL_ADC_DELAY_INTERNAL_REGUL_STAB_US * (SystemCoreClock / (100000 * 2))) / 10);
+   while(wait_loop_index != 0)
+     {
+   wait_loop_index--;
+     }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+   LL_ADC_EnableIT_OVR(ADC1);
+
   /* USER CODE END ADC1_Init 2 */
 
 }
@@ -731,7 +789,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -910,8 +968,8 @@ static void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA1_Channel1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+  NVIC_SetPriority(DMA1_Channel1_IRQn, 0);
+  NVIC_EnableIRQ(DMA1_Channel1_IRQn);
   /* DMA1_Channel2_3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);

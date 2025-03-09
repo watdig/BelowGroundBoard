@@ -31,6 +31,10 @@ float pid_step(pid_t *pid, float measurement, float setpoint);
 HAL_StatusTypeDef init_lin_actuator()
 {
 	HAL_StatusTypeDef status = HAL_OK;
+
+	rx_data[0] = 0;
+	rx_data[1] = 0;
+
 	// Initialize the PWM signal
 	TIM1->CCR1 = 0;
 	status = HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
@@ -50,7 +54,7 @@ HAL_StatusTypeDef init_lin_actuator()
 		return status;
 	}
 
-	if(rx_data[1] == DRV8244_ID)
+	if(rx_data[1] == DRV8244_Q1_ID)
 	{
 		// Unlock the Config Registers. Refer to section 8.6.1.5
 		tx_data[0] = COMMAND; // WRITE MASK = 0

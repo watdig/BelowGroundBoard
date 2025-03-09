@@ -22,6 +22,7 @@
 #include "stm32c0xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "sensor_adc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,7 +56,6 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-extern DMA_HandleTypeDef hdma_adc1;
 extern DMA_HandleTypeDef hdma_i2c1_rx;
 extern DMA_HandleTypeDef hdma_i2c1_tx;
 extern I2C_HandleTypeDef hi2c1;
@@ -152,11 +152,35 @@ void SysTick_Handler(void)
 void DMA1_Channel1_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Channel1_IRQn 0 */
+  /* Check whether DMA transfer complete caused the DMA interruption */
+  if(LL_DMA_IsActiveFlag_TC1(DMA1) == 1)
+  {
+	/* Clear flag DMA transfer complete */
+	LL_DMA_ClearFlag_TC1(DMA1);
 
+	/* Call interruption treatment function */
+	ADC_ConvCpltCallback();
+  }
+  else if(LL_DMA_IsActiveFlag_HT1(DMA1) == 1)
+  {
+	  /* Clear flag DMA half transfer complete */
+	  LL_DMA_ClearFlag_HT1(DMA1);
+
+	  /* Call interruption treatment function */
+	  ADC_ConvHalfCpltCallback();
+  }
   /* USER CODE END DMA1_Channel1_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_usart1_rx);
-  /* USER CODE BEGIN DMA1_Channel1_IRQn 1 */
 
+  /* USER CODE BEGIN DMA1_Channel1_IRQn 1 */
+  /* Check whether DMA transfer error caused the DMA interruption */
+  if(LL_DMA_IsActiveFlag_TE1(DMA1) == 1)
+  {
+	  /* Clear flag DMA transfer error */
+	  LL_DMA_ClearFlag_TE1(DMA1);
+
+	  /* Call interruption treatment function */
+	  ADC_ErrorCallback();
+  }
   /* USER CODE END DMA1_Channel1_IRQn 1 */
 }
 
@@ -168,8 +192,8 @@ void DMA1_Channel2_3_IRQHandler(void)
   /* USER CODE BEGIN DMA1_Channel2_3_IRQn 0 */
 
   /* USER CODE END DMA1_Channel2_3_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart1_rx);
   HAL_DMA_IRQHandler(&hdma_usart1_tx);
-  HAL_DMA_IRQHandler(&hdma_adc1);
   /* USER CODE BEGIN DMA1_Channel2_3_IRQn 1 */
 
   /* USER CODE END DMA1_Channel2_3_IRQn 1 */
@@ -188,6 +212,27 @@ void DMAMUX1_DMA1_CH4_5_IRQHandler(void)
   /* USER CODE BEGIN DMAMUX1_DMA1_CH4_5_IRQn 1 */
 
   /* USER CODE END DMAMUX1_DMA1_CH4_5_IRQn 1 */
+}
+
+/**
+  * @brief This function handles ADC1 interrupt.
+  */
+void ADC1_IRQHandler(void)
+{
+  /* USER CODE BEGIN ADC1_IRQn 0 */
+  /* Check whether ADC group regular overrun caused the ADC interruption */
+  if(LL_ADC_IsActiveFlag_OVR(ADC1) != 0)
+  {
+	/* Clear flag ADC group regular overrun */
+	LL_ADC_ClearFlag_OVR(ADC1);
+
+	/* Call interruption treatment function */
+	ADC_ErrorCallback();
+  }
+  /* USER CODE END ADC1_IRQn 0 */
+  /* USER CODE BEGIN ADC1_IRQn 1 */
+
+  /* USER CODE END ADC1_IRQn 1 */
 }
 
 /**
