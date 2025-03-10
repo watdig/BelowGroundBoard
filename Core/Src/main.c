@@ -173,6 +173,9 @@ int main(void)
   /* USER CODE BEGIN 1 */
 	int8_t modbus_status = HAL_OK;
 	int8_t i2c_status = HAL_OK;
+	int8_t spi_status = HAL_OK;
+	drv_command_t command = DEFAULT_DRV_COMMAND;
+	drv_spi_in_t spi_in = DEFAULT_DRV_SPI_IN;
 	uint8_t modbus_tx_len = 0;
   /* USER CODE END 1 */
 
@@ -234,20 +237,20 @@ int main(void)
   }
 
   /* Perform ADC activation procedure to make it ready to convert. */
-  ADC_Activate();
-  if ((LL_ADC_IsEnabled(ADC1) == 1)               &&
-	  (LL_ADC_IsDisableOngoing(ADC1) == 0)        &&
-	  (LL_ADC_REG_IsConversionOngoing(ADC1) == 0))
-  {
-	  LL_ADC_REG_StartConversion(ADC1);
-  }
+//  ADC_Activate();
+//  if ((LL_ADC_IsEnabled(ADC1) == 1)               &&
+//	  (LL_ADC_IsDisableOngoing(ADC1) == 0)        &&
+//	  (LL_ADC_REG_IsConversionOngoing(ADC1) == 0))
+//  {
+//	  LL_ADC_REG_StartConversion(ADC1);
+//  }
 //  bno055_init();
 
 
-//  	if(init_lin_actuator() != HAL_OK)
-//  	{
-//  		Error_Handler();
-//  	}
+  	if(DRV_Init(DRV8244P_Q1) != HAL_OK)
+  	{
+  		Error_Handler();
+  	}
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -422,50 +425,47 @@ int main(void)
 	  // TEST CODE START
 
 	  // DRV8244 Testing
-//	  // PWM Actuator Test
+	  // PWM Actuator Test
 //	  HAL_GPIO_WritePin(Actuator_A_EN_GPIO_Port, Actuator_A_EN_Pin, GPIO_PIN_SET);
-//	  TIM1->CCR1 = 10;
-//
-//	  uint8_t tx_data[2];
-//	  uint8_t rx_data[2];
-//
-//	  // Independent Mode Test
-//	  // Unlock the SPI_IN register. Refer to section 8.6.1.5
-//		tx_data[0] = COMMAND; // WRITE MASK = 0
-//		tx_data[1] = SPI_IN_UNLOCK;
-//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_RESET);
-//		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
-//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_SET);
-//
-//
-//		// Forwards
-//		tx_data[0] = SPI_IN; // WRITE MASK = 0
-//		tx_data[1] = S_EN_IN1;
-//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_RESET);
-//		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
-//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_SET);
-//
-//		HAL_Delay(1000);
-//
-//		// Turn off the DRV8244
-//		tx_data[0] = SPI_IN; // WRITE MASK = 0
-//		tx_data[1] = 0;
-//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_RESET);
-//		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
-//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_SET);
-//
-//		// Lock the SPI_IN register. Refer to section 8.6.1.5
-//		tx_data[0] = COMMAND; // WRITE MASK = 0
-//		tx_data[1] = SPI_IN_LOCK;
-//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_RESET);
-//		HAL_SPI_TransmitReceive(&hspi1, tx_data, rx_data, 2, 100);
-//		HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_SET);
-//
-//		TIM1->CCR1 = 0;
-//		HAL_Delay(100);
-//		HAL_GPIO_WritePin(Actuator_A_EN_GPIO_Port, Actuator_A_EN_Pin, GPIO_PIN_RESET);
-//
-//		HAL_Delay(10000);
+	  TIM1->CCR1 = 10;
+
+	  uint8_t tx_data[2];
+	  uint8_t rx_data[2];
+
+		// Independent Mode Test
+		// Unlock the SPI_IN register. Refer to section 8.6.1.5
+		command.spi_in_lock = SPI_IN_UNLOCK;
+		spi_status = DRV_SetCommand(&command);
+		spi_status |= DRV_GetCommand(&command);
+
+		if(spi_status == HAL_OK && command.spi_in_lock == SPI_IN_UNLOCK)
+		{
+			// Forwards
+			spi_in.s_en_in1 = 1;
+			spi_status = DRV_SetSpiIn(&spi_in);
+			spi_status |= DRV_GetSpiIn(&spi_in);
+
+			drv_fault_summary_t fault_summary;
+			spi_status = DRV_GetFaultSummary(&fault_summary);
+			drv_status_2_t status_2;
+			spi_status |= DRV_GetStatus2(&status_2);
+		}
+
+		HAL_Delay(1000);
+
+		// Turn off the DRV8244
+		spi_in = DEFAULT_DRV_SPI_IN;
+		spi_status = DRV_SetSpiIn(&spi_in);
+
+		// Lock the SPI_IN register. Refer to section 8.6.1.5
+		command = DEFAULT_DRV_COMMAND;
+		spi_status = DRV_SetCommand(&command);
+
+		TIM1->CCR1 = 0;
+		HAL_Delay(100);
+		HAL_GPIO_WritePin(Actuator_A_EN_GPIO_Port, Actuator_A_EN_Pin, GPIO_PIN_RESET);
+
+		HAL_Delay(10000);
 
 	  // TEST CODE END
 
@@ -998,22 +998,32 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(Actuator_C_EN_GPIO_Port, Actuator_C_EN_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, Actuator_A_EN_Pin|Actuator_B_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(Actuator_CS_GPIO_Port, Actuator_CS_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pins : Actuator_C_EN_Pin Encoder_Pulse_B_Pin */
-  GPIO_InitStruct.Pin = Actuator_C_EN_Pin|Encoder_Pulse_B_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  /*Configure GPIO pin : Actuator_C_EN_Pin */
+  GPIO_InitStruct.Pin = Actuator_C_EN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Actuator_C_EN_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : Encoder_Pulse_A_Pin */
   GPIO_InitStruct.Pin = Encoder_Pulse_A_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(Encoder_Pulse_A_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Encoder_Pulse_B_Pin */
+  GPIO_InitStruct.Pin = Encoder_Pulse_B_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(Encoder_Pulse_B_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : Actuator_A_EN_Pin Actuator_B_EN_Pin */
   GPIO_InitStruct.Pin = Actuator_A_EN_Pin|Actuator_B_EN_Pin;

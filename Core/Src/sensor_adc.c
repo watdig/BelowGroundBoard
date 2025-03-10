@@ -163,8 +163,6 @@ low_half_safe = 0;
 			wait_loop_index--;
 		}
 
-		/* Enable DMA */
-
 		/* Enable ADC */
 		LL_ADC_Enable(ADC1);
 

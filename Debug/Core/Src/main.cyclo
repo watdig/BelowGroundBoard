@@ -8,10 +8,6 @@
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:3379:22:LL_ADC_REG_SetSequencerChAdd	1
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:4400:22:LL_ADC_SetOverSamplingScope	1
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:4566:22:LL_ADC_EnableInternalRegulator	1
-../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:4656:26:LL_ADC_IsEnabled	2
-../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:4667:26:LL_ADC_IsDisableOngoing	2
-../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:4747:22:LL_ADC_REG_StartConversion	1
-../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:4783:26:LL_ADC_REG_IsConversionOngoing	2
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:4917:26:LL_ADC_IsActiveFlag_CCRDY	2
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:5030:22:LL_ADC_ClearFlag_CCRDY	1
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:5181:22:LL_ADC_EnableIT_OVR	1
@@ -44,4 +40,4 @@
 ../Core/Src/main.c:917:13:MX_USART1_UART_Init	5
 ../Core/Src/main.c:963:13:MX_DMA_Init	1
 ../Core/Src/main.c:987:13:MX_GPIO_Init	1
-../Core/Src/main.c:1050:6:Error_Handler	1
+../Core/Src/main.c:1060:6:Error_Handler	1
