@@ -27,10 +27,10 @@
 ../Core/Src/bno055.c:440:8:bno055_setCalibrationData	9
 ../Core/Src/bno055.c:542:6:bno055_get_all_values	2
 ../Core/Src/bno055.c:551:9:bno055_rx	2
-../Core/Src/bno055.c:561:8:bno055_queue_transaction	3
-../Core/Src/bno055.c:586:8:bno055_setAxisMap	2
-../Core/Src/bno055.c:612:8:monitor_i2c	7
-../Core/Src/bno055.c:653:8:bno055_write	1
-../Core/Src/bno055.c:664:8:bno055_read	3
-../Core/Src/bno055.c:683:8:i2c_reset	2
-../Core/Src/bno055.c:701:8:handle_i2c_error	1
+../Core/Src/bno055.c:561:8:bno055_queue_transaction	4
+../Core/Src/bno055.c:596:8:bno055_setAxisMap	2
+../Core/Src/bno055.c:622:8:monitor_i2c	7
+../Core/Src/bno055.c:663:8:bno055_write	1
+../Core/Src/bno055.c:674:8:bno055_read	3
+../Core/Src/bno055.c:693:8:i2c_reset	2
+../Core/Src/bno055.c:711:8:handle_i2c_error	1

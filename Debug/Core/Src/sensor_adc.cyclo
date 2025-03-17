@@ -8,6 +8,7 @@
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:4890:26:LL_ADC_IsActiveFlag_ADRDY	2
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_cortex.h:221:26:LL_SYSTICK_IsActiveCounterFlag	2
 ../Core/Src/sensor_adc.c:62:6:ADC_ConvCpltCallback	1
-../Core/Src/sensor_adc.c:73:6:ADC_ConvHalfCpltCallback	1
-../Core/Src/sensor_adc.c:78:6:ADC_ErrorCallback	1
-../Core/Src/sensor_adc.c:83:6:ADC_Activate	10
+../Core/Src/sensor_adc.c:67:6:ADC_ConvHalfCpltCallback	1
+../Core/Src/sensor_adc.c:72:6:ADC_ErrorCallback	1
+../Core/Src/sensor_adc.c:77:6:ADC_Activate	10
+../Core/Src/sensor_adc.c:201:8:monitor_adc	2

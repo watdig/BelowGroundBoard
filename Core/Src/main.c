@@ -62,15 +62,17 @@ DMA_HandleTypeDef hdma_usart1_tx;
 pid_t pid_constraints;
 uint16_t pin_map[NUM_ACTUATORS];
 GPIO_TypeDef* port_map[NUM_ACTUATORS];
+volatile int32_t encoder_pulse;
 
 uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
-		0x0001,	// MODBUS_ID
+		0x0005,	// MODBUS_ID
 		0x0003, // MB_BAUD_RATE
 		   100, // MB_TRANSMIT_TIMEOUT
 		   	 2, // MB_TRANSMIT_RETRIES
 		0x0000, // MB_ERRORS
 		0x0000, // I2C_ERRORS
 		0x0000, // I2C_SHUTDOWN
+		0x0000, // ADC_ERRORS
 		0x0000, // AUTOPILOT
 
 		0xFFFF, // ADC 0
@@ -131,9 +133,13 @@ uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0xFFFF, // Quarternion Y
 		0xFFFF, // Quarternion Z
 
-		0xFFFF, // Actuator A Target
-		0xFFFF, // Actuator B Target
-		0xFFFF, // Actuator C Target
+		0x0000, // Encoder Speed
+		0x2710, // Encoder Refresh Rate
+
+		400, // Actuator A Target
+		400, // Actuator B Target
+		400, // Actuator C Target
+		5000, // Actuator Time
 		0xFFFF, 0xFFFF, // Proportional Gain
 		0xFFFF, 0xFFFF, // Integral Gain
 		0xFFFF, 0xFFFF, // Derivative Gain
@@ -155,12 +161,31 @@ static void MX_TIM1_Init(void);
 static void MX_TIM14_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+void run_motor();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	// Refresh the Encoder Speed (pulses / 10 minutes)
+	holding_register_database[ENCODER_SPEED] = (int16_t)((((uint32_t)encoder_pulse)*600UL*10000UL) / (htim14.Init.Period + 1UL));
+	encoder_pulse = 0;
+}
+
+void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
+{
+	GPIO_PinState pulse_b = HAL_GPIO_ReadPin(Encoder_Pulse_B_GPIO_Port, Encoder_Pulse_B_Pin);
+	if(pulse_b == GPIO_PIN_SET)
+	{
+		encoder_pulse++;
+	}
+	else
+	{
+		encoder_pulse--;
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -173,10 +198,13 @@ int main(void)
   /* USER CODE BEGIN 1 */
 	int8_t modbus_status = HAL_OK;
 	int8_t i2c_status = HAL_OK;
-	int8_t spi_status = HAL_OK;
-	drv_command_t command = DEFAULT_DRV_COMMAND;
-	drv_spi_in_t spi_in = DEFAULT_DRV_SPI_IN;
+	int8_t adc_status = HAL_OK;
 	uint8_t modbus_tx_len = 0;
+	uint16_t encoder_refresh = 10000;
+	uint8_t actuate_complete[NUM_ACTUATORS];
+	uint8_t macro_consistency_count[NUM_ACTUATORS];
+	uint8_t micro_consistency_count[NUM_ACTUATORS];
+	uint32_t actuator_time = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -237,37 +265,45 @@ int main(void)
   }
 
   /* Perform ADC activation procedure to make it ready to convert. */
-//  ADC_Activate();
-//  if ((LL_ADC_IsEnabled(ADC1) == 1)               &&
-//	  (LL_ADC_IsDisableOngoing(ADC1) == 0)        &&
-//	  (LL_ADC_REG_IsConversionOngoing(ADC1) == 0))
-//  {
-//	  LL_ADC_REG_StartConversion(ADC1);
-//  }
-//  bno055_init();
+  ADC_Activate();
+  if ((LL_ADC_IsEnabled(ADC1) == 1)               &&
+	  (LL_ADC_IsDisableOngoing(ADC1) == 0)        &&
+	  (LL_ADC_REG_IsConversionOngoing(ADC1) == 0))
+  {
+	  LL_ADC_REG_StartConversion(ADC1);
+  }
 
+  bno055_init();
 
   	if(DRV_Init(DRV8244P_Q1) != HAL_OK)
   	{
   		Error_Handler();
   	}
+	/*
+	* target_actuator
+	* 0: Actuator A
+	* 1: Actuator B
+	* 2: Actuator C
+	*/
+  	uint8_t target_actuator = 0;
+  	actuate_complete[0] = 0;
+  	actuate_complete[1] = 0;
+  	actuate_complete[2] = 0;
+//  	actuate(target_actuator, holding_register_database[ADC_6 + target_actuator], holding_register_database[ACTUATOR_A_TARGET + target_actuator]);
+//  	run_motor();
+
+  	HAL_TIM_Base_Start_IT(&htim14);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  /*
-   * target_actuator
-   * 0: Actuator A
-   * 1: Actuator B
-   * 2: Actuator C
-   */
-//  uint8_t target_actuator = 0;
+
 
   while (1)
   {
 	  if(modbus_rx())
 	  {
-		  if(get_rx_buffer(0) == holding_register_database[0]) // Check Slave ID
+		  if(get_rx_buffer(0) == holding_register_database[MODBUS_ID]) // Check Slave ID
 		  {
 			  switch(get_rx_buffer(1))
 			  {
@@ -359,57 +395,112 @@ int main(void)
 		  }
 	  }
 
-//	  if(!holding_register_database[I2C_SHUTDOWN])
-//	  {
-//		  if(bno055_rx())
-//		  {
-//			  i2c_status = bno055_queue_transaction();
-//			  if(i2c_status != 0)
-//			  {
-//				  holding_register_database[I2C_ERRORS] |= 1U << ((i2c_status - 1) + I2C_FATAL_ERROR);
-//			  }
-//		  }
-//
-//		  i2c_status = monitor_i2c();
-//		  if(i2c_status != HAL_OK && i2c_status != HAL_BUSY)
-//		  {
-//			  switch(i2c_status)
-//			  {
-//				  case I2C_TX_TIMEOUT:
-//				  {
-//					  break;
-//				  }
-//				  case I2C_RX_TIMEOUT:
-//				  {
-//					  break;
-//				  }
-//				  case I2C_ERROR:
-//				  {
-//					  break;
-//				  }
-//				  case I2C_FATAL_ERROR:
-//				  {
-//					  // Disable the I2C peripheral
-//					  holding_register_database[I2C_SHUTDOWN] = 1;
-//					  break;
-//				  }
-//				  default:
-//				  {
-//					  // Unknown error
-//				  }
-//			  }
-//		  }
-//	  }
+	  if(!holding_register_database[I2C_SHUTDOWN])
+	  {
+		  if(bno055_rx())
+		  {
+			  i2c_status = bno055_queue_transaction();
+			  if(i2c_status != 0)
+			  {
+				  holding_register_database[I2C_ERRORS] |= 1U << ((i2c_status - 1) + I2C_FATAL_ERROR);
+			  }
+		  }
 
-//	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
-//		 holding_register_database[9 + target_actuator] <= holding_register_database[56 + target_actuator] + ACTUATOR_TOLERANCE)
-//	  {
-//		  actuate_spi(target_actuator, holding_register_database[9 + target_actuator], holding_register_database[56 + target_actuator]);
-//	  }
-//	  else
-//	  {
-//		  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
-//	  }
+		  i2c_status = monitor_i2c();
+		  if(i2c_status != HAL_OK && i2c_status != HAL_BUSY)
+		  {
+			  switch(i2c_status)
+			  {
+				  case I2C_TX_TIMEOUT:
+				  {
+					  break;
+				  }
+				  case I2C_RX_TIMEOUT:
+				  {
+					  break;
+				  }
+				  case I2C_ERROR:
+				  {
+					  break;
+				  }
+				  case I2C_FATAL_ERROR:
+				  {
+					  // Disable the I2C peripheral
+					  holding_register_database[I2C_SHUTDOWN] = 1;
+					  break;
+				  }
+				  default:
+				  {
+					  // Unknown error
+				  }
+			  }
+		  }
+	  }
+
+	  // If the actuator is in the Micro range
+	  if(((holding_register_database[ADC_6 + target_actuator]) >= (holding_register_database[ACTUATOR_A_TARGET + target_actuator] - ACTUATOR_TOLERANCE)) &&
+		 ((holding_register_database[ADC_6 + target_actuator]) <= (holding_register_database[ACTUATOR_A_TARGET + target_actuator] + ACTUATOR_TOLERANCE)))
+	  {
+		  micro_consistency_count[target_actuator]++;
+		  if(micro_consistency_count[target_actuator] >= 5)
+		  {
+			  micro_consistency_count[target_actuator] = 5;
+			  actuate_complete[target_actuator] = 1;
+			  if(actuate_complete[0] == 1 &&
+				 actuate_complete[1] == 1 &&
+				 actuate_complete[2] == 1 &&
+				 !DRV_GetShutoff())
+			  {
+				  DRV_Shutoff();
+			  }
+			  else if(!DRV_GetShutoff())
+			  {
+				  // Move to the next actuator and force it to run if it isn't in the requested range
+				  actuator_time = HAL_GetTick() - ((uint32_t)holding_register_database[ACTUATOR_TIME]);
+				  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
+			  }
+		  }
+	  }
+	  else
+	  {
+		  micro_consistency_count[target_actuator] = 0;
+		  // if the DRV is shutoff
+		  if(DRV_GetShutoff())
+		  {
+			  // If the ADC is outside of the Macro range
+			  if(((holding_register_database[ADC_6 + target_actuator]) <= (holding_register_database[ACTUATOR_A_TARGET + target_actuator] - ACTUATOR_TOLERANCE_MACRO)) ||
+				 ((holding_register_database[ADC_6 + target_actuator]) >= (holding_register_database[ACTUATOR_A_TARGET + target_actuator] + ACTUATOR_TOLERANCE_MACRO)))
+			  {
+				  macro_consistency_count[target_actuator]++;
+				  if(macro_consistency_count[target_actuator] >= 10)
+				  {
+					  macro_consistency_count[target_actuator] = 10;
+					  DRV_Activate(target_actuator, holding_register_database[ADC_6 + target_actuator], holding_register_database[ACTUATOR_A_TARGET + target_actuator]);
+					  actuator_time = HAL_GetTick();
+					  actuate_complete[0] = 0;
+					  actuate_complete[1] = 0;
+					  actuate_complete[2] = 0;
+				  }
+			  }
+			  else
+			  {
+				 // Check a different actuator
+				  macro_consistency_count[target_actuator] = 0;
+				  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
+			  }
+		  }
+		  else
+		  {
+			  // If the actuator has been running for a given amount of time
+			  if((HAL_GetTick() - actuator_time) >= ((uint32_t)holding_register_database[ACTUATOR_TIME]))
+			  {
+				  actuator_time = HAL_GetTick();
+				  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
+			  }
+		  }
+	  }
+	  actuate(target_actuator, holding_register_database[ADC_6 + target_actuator], holding_register_database[ACTUATOR_A_TARGET + target_actuator]);
+
 
 	  // 15 adc values relates to x cm of the linear actuator
 //	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
@@ -422,53 +513,28 @@ int main(void)
 //		  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
 //	  }
 
-	  // TEST CODE START
+	  // Monitor any ADC Errors
+	  adc_status = monitor_adc();
+	  if(adc_status != HAL_OK)
+	  {
+		  // An Overrun has occurred as shown in ADC1_IRQHandler in stm32c0xx_it.c. Log the error
+		  holding_register_database[ADC_ERRORS] = 1;
+	  }
 
-	  // DRV8244 Testing
-	  // PWM Actuator Test
-//	  HAL_GPIO_WritePin(Actuator_A_EN_GPIO_Port, Actuator_A_EN_Pin, GPIO_PIN_SET);
-	  TIM1->CCR1 = 10;
-
-	  uint8_t tx_data[2];
-	  uint8_t rx_data[2];
-
-		// Independent Mode Test
-		// Unlock the SPI_IN register. Refer to section 8.6.1.5
-		command.spi_in_lock = SPI_IN_UNLOCK;
-		spi_status = DRV_SetCommand(&command);
-		spi_status |= DRV_GetCommand(&command);
-
-		if(spi_status == HAL_OK && command.spi_in_lock == SPI_IN_UNLOCK)
-		{
-			// Forwards
-			spi_in.s_en_in1 = 1;
-			spi_status = DRV_SetSpiIn(&spi_in);
-			spi_status |= DRV_GetSpiIn(&spi_in);
-
-			drv_fault_summary_t fault_summary;
-			spi_status = DRV_GetFaultSummary(&fault_summary);
-			drv_status_2_t status_2;
-			spi_status |= DRV_GetStatus2(&status_2);
-		}
-
-		HAL_Delay(1000);
-
-		// Turn off the DRV8244
-		spi_in = DEFAULT_DRV_SPI_IN;
-		spi_status = DRV_SetSpiIn(&spi_in);
-
-		// Lock the SPI_IN register. Refer to section 8.6.1.5
-		command = DEFAULT_DRV_COMMAND;
-		spi_status = DRV_SetCommand(&command);
-
-		TIM1->CCR1 = 0;
-		HAL_Delay(100);
-		HAL_GPIO_WritePin(Actuator_A_EN_GPIO_Port, Actuator_A_EN_Pin, GPIO_PIN_RESET);
-
-		HAL_Delay(10000);
-
-	  // TEST CODE END
-
+	  // Handle the User changing the encoder refresh rate (does not log potential errors)
+	  if(encoder_refresh != holding_register_database[ENCODER_REFRESH])
+	  {
+		  HAL_TIM_Base_Stop_IT(&htim14);
+		  HAL_TIM_Base_DeInit(&htim14);
+		  __HAL_RCC_TIM14_FORCE_RESET();
+		  HAL_Delay(10);
+		  __HAL_RCC_TIM14_RELEASE_RESET();
+		  HAL_Delay(10);
+		  htim14.Init.Period = holding_register_database[ENCODER_REFRESH] - 1;
+		  HAL_TIM_Base_Init(&htim14);
+		  HAL_TIM_Base_Start_IT(&htim14);
+		  encoder_refresh = holding_register_database[ENCODER_REFRESH];
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -662,11 +728,11 @@ static void MX_ADC1_Init(void)
   ADC_REG_InitStruct.SequencerDiscont = LL_ADC_REG_SEQ_DISCONT_DISABLE;
   ADC_REG_InitStruct.ContinuousMode = LL_ADC_REG_CONV_CONTINUOUS;
   ADC_REG_InitStruct.DMATransfer = LL_ADC_REG_DMA_TRANSFER_UNLIMITED;
-  ADC_REG_InitStruct.Overrun = LL_ADC_REG_OVR_DATA_OVERWRITTEN;
+  ADC_REG_InitStruct.Overrun = LL_ADC_REG_OVR_DATA_PRESERVED;
   LL_ADC_REG_Init(ADC1, &ADC_REG_InitStruct);
   LL_ADC_REG_SetSequencerScanDirection(ADC1, LL_ADC_REG_SEQ_SCAN_DIR_FORWARD);
   LL_ADC_SetOverSamplingScope(ADC1, LL_ADC_OVS_DISABLE);
-  LL_ADC_SetTriggerFrequencyMode(ADC1, LL_ADC_CLOCK_FREQ_MODE_LOW);
+  LL_ADC_SetTriggerFrequencyMode(ADC1, LL_ADC_CLOCK_FREQ_MODE_HIGH);
   LL_ADC_REG_SetSequencerChAdd(ADC1, LL_ADC_CHANNEL_0|LL_ADC_CHANNEL_1
                               |LL_ADC_CHANNEL_2|LL_ADC_CHANNEL_3
                               |LL_ADC_CHANNEL_4|LL_ADC_CHANNEL_5
@@ -826,7 +892,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 10-1;
+  htim1.Init.Prescaler = 80-1;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 100-1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -894,9 +960,9 @@ static void MX_TIM14_Init(void)
 
   /* USER CODE END TIM14_Init 1 */
   htim14.Instance = TIM14;
-  htim14.Init.Prescaler = 12 - 1 ;
+  htim14.Init.Prescaler = 800 - 1 ;
   htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim14.Init.Period = 65535;
+  htim14.Init.Period = 10000 - 1;
   htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
@@ -1045,12 +1111,105 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(IMU_Reset_GPIO_Port, &GPIO_InitStruct);
 
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI4_15_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
+
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
 
+void run_motor()
+{
+		int8_t spi_status = HAL_OK;
+		drv_command_t command = DEFAULT_DRV_COMMAND;
+		drv_spi_in_t spi_in = DEFAULT_DRV_SPI_IN;
+
+	// PWM Actuator Test
+	  HAL_GPIO_WritePin(Actuator_C_EN_GPIO_Port, Actuator_C_EN_Pin, GPIO_PIN_SET);
+//	  TIM1->CCR1 = 10;
+
+		// Independent Mode Test
+		// Unlock the SPI_IN register. Refer to section 8.6.1.5
+		command.spi_in_lock = SPI_IN_UNLOCK;
+		spi_status = DRV_SetCommand(&command);
+		spi_status |= DRV_GetCommand(&command);
+		drv_fault_summary_t fault_summary;
+		drv_status_1_t status_1;
+		drv_status_2_t status_2;
+		drv_config_1_t config_1;
+		drv_config_2_t config_2;
+		drv_config_3_t config_3;
+		drv_config_4_t config_4;
+		config_1.vmov_retry = 1;
+		spi_status |= DRV_SetConfig1(&config_1);
+		spi_status |= DRV_GetConfig1(&config_1);
+		spi_status |= DRV_GetConfig2(&config_2);
+		spi_status |= DRV_GetConfig3(&config_3);
+		spi_status |= DRV_GetConfig4(&config_4);
+
+
+		if(spi_status == HAL_OK && command.spi_in_lock == SPI_IN_UNLOCK)
+		{
+			// retract
+//			spi_in.s_en_in1 = 0;
+// 			spi_in.s_ph_in2 = 0;
+// 			spi_in.s_drv_off = 0;
+// 			spi_in.s_drv_off2 = 0;
+//			spi_status = DRV_SetSpiIn(&spi_in);
+//			spi_status |= DRV_GetSpiIn(&spi_in);
+
+
+//			spi_status = DRV_GetFaultSummary(&fault_summary);
+//			spi_status |= DRV_GetStatus2(&status_2);
+//
+			// extend
+			spi_in.s_en_in1 = 0;
+			spi_in.s_ph_in2 = 1;
+			spi_in.s_drv_off = 0;
+			spi_in.s_drv_off2 = 0;
+			spi_status = DRV_SetSpiIn(&spi_in);
+			spi_status |= DRV_GetSpiIn(&spi_in);
+
+//			if(spi_status != HAL_OK)
+//			{
+//				spi_status = 0;
+//			}
+			TIM1->CCR1 = 100;
+		}
+		HAL_Delay(1000);
+		TIM1->CCR1 = 0;
+		HAL_Delay(1000);
+		// Turn off the DRV8244
+		spi_in = DEFAULT_DRV_SPI_IN;
+		spi_status = DRV_SetSpiIn(&spi_in);
+
+		// Lock the SPI_IN register. Refer to section 8.6.1.5
+		command = DEFAULT_DRV_COMMAND;
+		spi_status = DRV_SetCommand(&command);
+
+
+		HAL_Delay(1000);
+		HAL_GPIO_WritePin(Actuator_C_EN_GPIO_Port, Actuator_C_EN_Pin, GPIO_PIN_RESET);
+
+		spi_status = DRV_GetFaultSummary(&fault_summary);
+		spi_status |= DRV_GetStatus1(&status_1);
+		spi_status |= DRV_GetStatus2(&status_2);
+		command.clr_flt = 1;
+		spi_status |= DRV_SetCommand(&command);
+
+		spi_status |= DRV_GetConfig1(&config_1);
+		spi_status |= DRV_GetConfig2(&config_2);
+		spi_status |= DRV_GetConfig3(&config_3);
+		spi_status |= DRV_GetConfig4(&config_4);
+		spi_status = DRV_GetFaultSummary(&fault_summary);
+
+
+
+		HAL_Delay(HAL_MAX_DELAY);
+}
 /* USER CODE END 4 */
 
 /**

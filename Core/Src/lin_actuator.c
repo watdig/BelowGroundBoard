@@ -12,9 +12,11 @@
 #include "lin_actuator.h"
 
 
-uint8_t selected_actuator = 0;
+uint8_t selected_actuator = NUM_ACTUATORS;
 uint8_t drv_on = 0;
 uint32_t time_ms = 0;
+uint8_t drv_shutoff = 0;
+uint8_t pin_off[NUM_ACTUATORS];
 
 extern uint16_t pin_map[NUM_ACTUATORS];
 extern GPIO_TypeDef* port_map[NUM_ACTUATORS];
@@ -27,7 +29,7 @@ uint8_t rx_data[2];
 
 float pid_step(pid_t *pid, float measurement, float setpoint);
 
-int8_t actuate_spi(uint8_t actuator, uint16_t current, uint16_t target)
+int8_t actuate(uint8_t actuator, uint16_t current, uint16_t target)
 {
 	if(selected_actuator != actuator)
 	{
@@ -42,51 +44,34 @@ int8_t actuate_spi(uint8_t actuator, uint16_t current, uint16_t target)
 			if(status != HAL_OK){return status;}
 
 			// Turn off the DRV8244
-			spi_in.s_drv_off = 0;
-			spi_in.s_drv_off2 = 0;
+			TIM1->CCR1 = 0;
+			spi_in.s_drv_off = 1;
+			spi_in.s_drv_off2 = 1;
 			status = DRV_SetSpiIn(&spi_in);
 			if(status != HAL_OK){return status;}
+			drv_on = 0;
 
 			// Lock the SPI_IN register. Refer to section 8.6.1.5
 			command.spi_in_lock = SPI_IN_LOCK;
 			status = DRV_SetCommand(&command);
 			if(status != HAL_OK){return status;}
 
-			drv_on = 0;
 			time_ms = HAL_GetTick();
 		}
 		if(HAL_GetTick() - time_ms >= ACTUATOR_TRANSIENT_DELAY)
 		{
-			// Deactivate the old actuator
-			HAL_GPIO_TogglePin(GPIOB, pin_map[selected_actuator]);
-			// Activate the new actuator
-			HAL_GPIO_TogglePin(GPIOB, pin_map[actuator]);
-
-			// Unlock the SPI_IN register. Refer to section 8.6.1.5
-			command.spi_in_lock = SPI_IN_UNLOCK;
-			status = DRV_SetCommand(&command);
-			if(status != HAL_OK){return status;}
-
-			// Turn on the DRV8244
-			if(target > current)
+			if(!pin_off[selected_actuator])
 			{
-				// Forwards
-				spi_in.s_en_in1 = 1;
-				status = DRV_SetSpiIn(&spi_in);
+				pin_off[selected_actuator] = 1;
+				// Deactivate the old actuator
+				HAL_GPIO_WritePin(port_map[selected_actuator], pin_map[selected_actuator], GPIO_PIN_RESET);
 			}
-			else
+
+			if(!drv_shutoff)
 			{
-				// Backwards
-				spi_in.s_ph_in2 = 1;
-				status = DRV_SetSpiIn(&spi_in);
+				status = DRV_Activate(actuator, current, target);
+				if(status != HAL_OK){return status;}
 			}
-			if(status != HAL_OK){return status;}
-
-			// Lock the SPI_IN register. Refer to section 8.6.1.5
-			command.spi_in_lock = SPI_IN_LOCK;
-			status = DRV_SetCommand(&command);
-
-			drv_on = 1;
 			selected_actuator = actuator;
 		}
 		return status;
@@ -94,41 +79,61 @@ int8_t actuate_spi(uint8_t actuator, uint16_t current, uint16_t target)
 	return HAL_OK;
 }
 
-void actuate_pwm(uint8_t actuator, uint16_t current, uint16_t target)
+void DRV_Shutoff()
 {
-	if(selected_actuator != actuator)
+	drv_shutoff = 1;
+}
+
+uint8_t DRV_GetShutoff()
+{
+	return drv_shutoff;
+}
+
+int8_t DRV_Activate(uint8_t actuator, uint16_t current, uint16_t target)
+{
+	int8_t status = HAL_OK;
+	drv_command_t command = DEFAULT_DRV_COMMAND;
+	drv_spi_in_t spi_in = DEFAULT_DRV_SPI_IN;
+
+	drv_shutoff = 0;
+
+	// Activate the new actuator
+	HAL_GPIO_WritePin(port_map[actuator], pin_map[actuator], GPIO_PIN_SET);
+	pin_off[actuator] = 0;
+
+	// Unlock the SPI_IN register. Refer to section 8.6.1.5
+	command.spi_in_lock = SPI_IN_UNLOCK;
+	status = DRV_SetCommand(&command);
+	if(status != HAL_OK){return status;}
+
+	// Turn on the DRV8244
+	spi_in.s_en_in1 = 0;
+	spi_in.s_drv_off = 0;
+	spi_in.s_drv_off2 = 0;
+	if(target > current)
 	{
-		// Wait an amount of time for electrical safety
-		if(drv_on)
-		{
-			// Shut off the PWM pin
-			time_ms = HAL_GetTick();
-			drv_on = 0;
-		}
-		if(HAL_GetTick() - time_ms >= ACTUATOR_TRANSIENT_DELAY)
-		{
-
-			// Deactivate the old actuator
-			HAL_GPIO_TogglePin(GPIOB, pin_map[selected_actuator]);
-
-			// Activate the new actuator
-			HAL_GPIO_TogglePin(GPIOB, pin_map[actuator]);
-
-			// Set the duty cycle
-			TIM1->CCR1 = pid_step(&pid_constraints, current, target);
-
-			drv_on = 1;
-			// Exit this code section by switching the actuator
-			selected_actuator = actuator;
-		}
-
+		// Extend
+		spi_in.s_ph_in2 = 1;
 	}
 	else
 	{
-		// Just set the duty cycle
-		TIM1->CCR1 = pid_step(&pid_constraints, current, target);
+		// Retract
+		spi_in.s_ph_in2 = 0;
 	}
+	status = DRV_SetSpiIn(&spi_in);
+	if(status != HAL_OK){return status;}
 
+	// Lock the SPI_IN register. Refer to section 8.6.1.5
+	command.spi_in_lock = SPI_IN_LOCK;
+	status = DRV_SetCommand(&command);
+
+	// Set the PWM Frequency
+	TIM1->CCR1 = 40;
+
+	drv_on = 1;
+	selected_actuator = actuator;
+
+	return status;
 }
 
 float pid_step(pid_t *pid, float measurement, float setpoint)
@@ -203,6 +208,9 @@ float pid_step(pid_t *pid, float measurement, float setpoint)
 int8_t DRV_Init(uint8_t device_id)
 {
 	int8_t status = HAL_OK;
+	pin_off[0] = 1;
+	pin_off[1] = 1;
+	pin_off[2] = 1;
 
 	// Initialize the PWM signal
 	TIM1->CCR1 = 0;
@@ -220,19 +228,71 @@ int8_t DRV_Init(uint8_t device_id)
 		drv_command_t command;
 		command.clr_flt = 1;
 		command.reg_lock = REG_UNLOCK;
+		command.spi_in_lock = SPI_IN_LOCK;
 		status = DRV_SetCommand(&command);
 		if(status != HAL_OK){return status;}
 
-		// Configure independent mode
-		drv_config_3_t config_3;
-		config_3.s_mode = S_MODE_INDEPENDENT;
-		config_3.toff = TOFF_40US;
-		status = DRV_SetConfig3(&config_3);
+		drv_config_1_t w_config_1;
+		w_config_1.raw_data = 0;
+		w_config_1.en_ola = 1;
+		w_config_1.ocp_retry = 1;
+		w_config_1.ola_retry = 1;
+		w_config_1.ssc_dis = 1;
+		w_config_1.tsd_retry = 1;
+		w_config_1.vmov_retry = 1;
+		w_config_1.vmov_sel = VMOV_SEL_18V;
+		status = DRV_SetConfig1(&w_config_1);
+		if(status != HAL_OK){return status;}
+
+		drv_config_2_t w_config_2;
+		w_config_2.raw_data = 0;
+		w_config_2.pwm_extend = 0;
+		w_config_2.s_diag = S_DIAG_MODE_3;
+		w_config_2.s_itrip = S_ITRIP_DISABLE;
+		status = DRV_SetConfig2(&w_config_2);
+		if(status != HAL_OK){return status;}
+
+		// Configure PH/EN Mode
+		drv_config_3_t w_config_3;
+		w_config_3.raw_data = 0;
+		w_config_3.s_mode = S_MODE_PH_EN;
+		w_config_3.toff = TOFF_40US;
+		w_config_3.s_sr = 0;
+		status = DRV_SetConfig3(&w_config_3);
+		if(status != HAL_OK){return status;}
+
+		// Configure the DRV to allow the SPI bit configuration to control the h-bridge
+		drv_config_4_t w_config_4;
+		w_config_4.raw_data = 0;
+		w_config_4.drvoff_sel = DRVOFF_SEL_OR;
+		w_config_4.en_in1_sel = EN_IN1_SEL_OR;
+		w_config_4.ph_in2_sel = PH_IN2_SEL_OR;
+		w_config_4.tocp_sel = TOCP_SEL_6US;
+		w_config_4.ocp_sel = OCP_SEL_100;
+		status = DRV_SetConfig4(&w_config_4);
 		if(status != HAL_OK){return status;}
 
 		// Lock the Config Registers. Refer to section 8.6.1.5
 		command.reg_lock = REG_LOCK;
 		status = DRV_SetCommand(&command);
+		if(status != HAL_OK){return status;}
+
+		// Sanity check the configuration
+		drv_config_1_t r_config_1;
+		drv_config_2_t r_config_2;
+		drv_config_3_t r_config_3;
+		drv_config_4_t r_config_4;
+
+		status = DRV_GetConfig1(&r_config_1);
+		status |= DRV_GetConfig2(&r_config_2);
+		status |= DRV_GetConfig3(&r_config_3);
+		status |= DRV_GetConfig4(&r_config_4);
+		if(status != HAL_OK){return status;}
+
+		if(r_config_1.raw_data != w_config_1.raw_data){return HAL_ERROR;}
+		if(r_config_2.raw_data != w_config_2.raw_data){return HAL_ERROR;}
+		if(r_config_3.raw_data != w_config_3.raw_data){return HAL_ERROR;}
+		if(r_config_4.raw_data != w_config_4.raw_data){return HAL_ERROR;}
 	}
 	else
 	{

@@ -56,6 +56,7 @@ typedef enum holding_register_e
 	MB_ERRORS,
 	I2C_ERRORS,
 	I2C_SHUTDOWN,
+	ADC_ERRORS,
 	AUTOPILOT,
 
 	ADC_0,
@@ -114,9 +115,13 @@ typedef enum holding_register_e
 	REMOTE_QUARTERNION_Y,
 	REMOTE_QUARTERNION_Z,
 
+	ENCODER_SPEED,
+	ENCODER_REFRESH,
+
 	ACTUATOR_A_TARGET,
 	ACTUATOR_B_TARGET,
 	ACTUATOR_C_TARGET,
+	ACTUATOR_TIME,
 	PROPORTIONAL_GAIN_HI,
 	PROPORTIONAL_GAIN_LO,
 	INTEGRAL_GAIN_HI,
@@ -138,8 +143,9 @@ typedef enum holding_register_e
 #define USE_TIMEOUT 1
 
 #define NUM_ACTUATORS 3
-#define ACTUATOR_TOLERANCE 15 // TODO: relate this adc value to mm with some equation
-#define ACTUATOR_TRANSIENT_DELAY 150 // TODO: figure out a safe value for this
+#define ACTUATOR_TOLERANCE 5 // TODO: relate this adc value to mm with some equation
+#define ACTUATOR_TOLERANCE_MACRO 25
+#define ACTUATOR_TRANSIENT_DELAY 1000 // TODO: figure out a safe value for this
 #define I2C_TIMEOUT_MS 100
 /* USER CODE END EC */
 
@@ -162,6 +168,7 @@ void Error_Handler(void);
 #define Actuator_C_EN_GPIO_Port GPIOB
 #define Encoder_Pulse_A_Pin GPIO_PIN_13
 #define Encoder_Pulse_A_GPIO_Port GPIOB
+#define Encoder_Pulse_A_EXTI_IRQn EXTI4_15_IRQn
 #define Encoder_Pulse_B_Pin GPIO_PIN_14
 #define Encoder_Pulse_B_GPIO_Port GPIOB
 #define Actuator_A_EN_Pin GPIO_PIN_6

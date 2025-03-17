@@ -561,11 +561,21 @@ uint8_t bno055_rx()
 int8_t bno055_queue_transaction()
 {
 	uint8_t status = HAL_OK;
-	uint8_t* buffer = (uint8_t*)(&holding_register_database[12]);
+	uint16_t start_register = 0;
+	if(bno055_address == BNO055_I2C_ADDR_LO << 1)
+	{
+		start_register = ACCELEROMETER_X;
+	}
+	else
+	{
+		start_register = REMOTE_ACCELEROMETER_X;
+	}
+	uint8_t* buffer = (uint8_t*)(&holding_register_database[start_register]);
 	i2c_rx_int = 0;
 	i2c_rx_time = HAL_GetTick();
 	status = HAL_I2C_Mem_Read_DMA(&hi2c1, bno055_address, mem_read_map[read_index].reg,
-			I2C_MEMADD_SIZE_8BIT, &buffer[6 * read_index], mem_read_map[read_index].reg_len);
+			I2C_MEMADD_SIZE_8BIT, (uint8_t*)(&holding_register_database[start_register + (3 * read_index)]),
+			mem_read_map[read_index].reg_len);
 	__HAL_DMA_DISABLE_IT(&hdma_i2c1_rx, DMA_IT_HT);
 
 	if(read_index == NUM_VECTORS - 1)
@@ -628,7 +638,7 @@ int8_t monitor_i2c()
 	// TX timeout handling
 	if(!i2c_tx_int)
 	{
-		if(HAL_GetTick() - i2c_tx_time >= 100)
+		if(HAL_GetTick() - i2c_tx_time >= 20)
 		{
 			i2c_tx_int = 1;
 			return handle_i2c_error(I2C_TX_TIMEOUT);
@@ -639,7 +649,7 @@ int8_t monitor_i2c()
 	// RX timeout handling
 	if(!i2c_rx_int)
 	{
-		if(HAL_GetTick() - i2c_rx_time >= 100)
+		if(HAL_GetTick() - i2c_rx_time >= 20)
 		{
 			i2c_rx_int = 1;
 			return handle_i2c_error(I2C_RX_TIMEOUT);

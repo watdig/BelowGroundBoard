@@ -58,16 +58,10 @@
 #define VAR_CONVERTED_DATA_INIT_VALUE    (__LL_ADC_DIGITAL_SCALE(LL_ADC_RESOLUTION_12B) + 1)
 
 volatile uint8_t low_half_safe;
-
+volatile uint8_t adc_err_int;
 void ADC_ConvCpltCallback()
 {
 	low_half_safe = 0;
-	//HAL_ADC_Stop_DMA(&hadc1);
-
-//	for(uint8_t i = 0; i < 9; i++)
-//	{
-//		holding_register_database[i + 3] = (uint16_t)raw_data[i];
-//	}
 }
 
 void ADC_ConvHalfCpltCallback()
@@ -77,12 +71,13 @@ void ADC_ConvHalfCpltCallback()
 
 void ADC_ErrorCallback()
 {
-
+	adc_err_int = 1;
 }
 
 void ADC_Activate()
 {
-low_half_safe = 0;
+	low_half_safe = 0;
+	adc_err_int = 0;
 	__IO uint32_t wait_loop_index = 0U;
 	__IO uint32_t backup_setting_adc_dma_transfer = 0U;
 	#if (USE_TIMEOUT == 1)
@@ -201,4 +196,14 @@ low_half_safe = 0;
 
 	/*## Operation on ADC hierarchical scope: ADC group injected ###############*/
 	/* Note: Feature not available on this STM32 series */
+}
+
+int8_t monitor_adc()
+{
+	if(adc_err_int)
+	{
+		adc_err_int = 0;
+		return HAL_ERROR;
+	}
+	return HAL_OK;
 }

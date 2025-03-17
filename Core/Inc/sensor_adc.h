@@ -13,4 +13,6 @@ void ADC_ConvCpltCallback();
 void ADC_ConvHalfCpltCallback();
 void ADC_ErrorCallback();
 
+int8_t monitor_adc();
+
 #endif /* INC_SENSOR_ADC_H_ */

@@ -72,7 +72,10 @@ typedef union drv_status_2_u
 #define REG_LOCK		0b10
 
 #define DEFAULT_DRV_COMMAND ((drv_command_t){ .reg_lock = REG_UNLOCK,   \
-				  .spi_in_lock = SPI_IN_LOCK })
+				  .reserved_1 = 0,  		 \
+				  .spi_in_lock = SPI_IN_LOCK,\
+				  .reserved_2 = 0,			 \
+				  .clr_flt = 0,				 })
 typedef union drv_command_u
 {
 	uint8_t raw_data;
@@ -102,13 +105,58 @@ typedef union drv_spi_in_u
 	};
 }drv_spi_in_t;
 
+/*
+ * OLA Retry : Open Load Detection reset bit
+ * Will reset the nFAULT pin which is asserted low in the event of an OLA fault
+ */
+
+/*
+ * VMOV Retry: Over Voltage Detection and Under voltage detection reset bit
+ * Will reset the nFAULT pin which is asserted low in the event of a VMOV fault
+ * Will reset the following reaction in the event of a VMUV fault
+ * - nFAULT pin asserted low
+ * - OUT1 and OUT2 set to be Hi-Z
+ * - IPROP set to be Hi-Z
+ */
+
+/*
+ * TSD Retry: Over Temperature Detection reset bit
+ * Will reset the following reaction in the event of a TSD fault
+ * - nFAULT pin asserted low
+ * - OUT1 and OUT2 set to be Hi-Z
+ * - IPROP set to be Hi-Z
+ */
+
+/*
+ * OCP Retry: Over Current Protection reset bit
+ * Will reset the following reaction in the event of a TSD fault
+ * - nFAULT pin asserted low
+ * If PH/EN or PWM Mode
+ * 		- OUT1 and OUT2 set to be Hi-Z
+ * else if Independent Mode
+ * 		- The affect bridge OUTx set to be Hi-Z
+ * - IPROP set to be High
+ */
+
+/*
+ * SSC_DIS : Enables the spread spectrum clocking feature
+ */
+
 #define VMOV_SEL_35V 		0b00
 #define VMOV_SEL_28V 		0b01
 #define VMOV_SEL_18V 		0b10
 #define VMOV_SEL_DISABLE 	0b11
 
-#define DEFAULT_DRV_CONFIG_1 ((drv_config_1_t){ .ssc_dis = 1			 \
-				 .vmov_sel = VMOV_SEL_35V \
+/*
+ * EN_OLA: Enables Open Load Detection
+ */
+
+#define DEFAULT_DRV_CONFIG_1 ((drv_config_1_t){ .ola_retry = 0,			 \
+				 .vmov_retry = 0,		  \
+				 .tsd_retry = 0,		  \
+				 .ocp_retry = 0, 		  \
+				 .ssc_dis = 1,  		  \
+				 .vmov_sel = VMOV_SEL_35V,\
 				 .en_ola = 0			  })
 typedef union drv_config_1_u
 {
@@ -160,7 +208,7 @@ typedef union drv_config_1_u
 
 /*
  * If PWM Extend bit is enabled = 0b1, the following Hi-Z states are possible
- * Previous State | 	Current State 	 	 | Device State Transition
+ * Previous State | State if PWM Extend = 1  | Device State Transition
  * OUT1  | OUT2	  | OUT1 | OUT2 | IPROPI 	 | Remains in STANDBY, No change
  * Hi-Z	 | Hi-Z	  | Hi-Z | Hi-Z | No Current | ACTIVE to STANDBY
  * H	 | H	  | Hi-Z | Hi-Z | No Current | ACTIVE to STANDBY
@@ -169,6 +217,7 @@ typedef union drv_config_1_u
  */
 
 #define DEFAULT_DRV_CONFIG_2 ((drv_config_2_t){ .s_itrip = S_ITRIP_DISABLE, \
+				 .reserved = 0				\
 				 .s_diag = S_DIAG_MODE_0,	\
 				 .pwm_extend = 0			})
 typedef union drv_config_2_u
@@ -199,6 +248,7 @@ typedef union drv_config_2_u
 
 #define DEFAULT_DRV_CONFIG_3 ((drv_config_3_t){ .s_mode = S_MODE_PH_EN, \
 				 .s_sr = 0,				\
+				 .reserved = 0, 		\
 				 .toff = TOFF_30US		})
 typedef union drv_config_3_u
 {
@@ -233,7 +283,8 @@ typedef union drv_config_3_u
 #define DEFAULT_DRV_CONFIG_4 ((drv_config_4_t){ .ph_in2_sel = PH_IN2_SEL_OR,  \
 				 .en_in1_sel = EN_IN1_SEL_OR,  \
 				 .drvoff_sel = DRVOFF_SEL_AND, \
-				 .ocp_sel 	= OCP_SEL_100	   \
+				 .ocp_sel 	= OCP_SEL_100,	   \
+				 .reserved  = 0,			   \
 				 .tocp_sel 	= TOCP_SEL_6US     })
 typedef union drv_config_4_u
 {
@@ -283,8 +334,11 @@ typedef struct pid_s
     float command_prev;    // Previous command
 }pid_t;
 
-void actuate_pwm(uint8_t actuator, uint16_t current, uint16_t target);
-int8_t actuate_spi(uint8_t actuator, uint16_t current, uint16_t target);
+int8_t actuate(uint8_t actuator, uint16_t current, uint16_t target);
+void DRV_Shutoff();
+uint8_t DRV_GetShutoff();
+int8_t DRV_Activate(uint8_t actuator, uint16_t current, uint16_t target);
+
 
 int8_t DRV_Init(uint8_t device_id);
 int8_t DRV_GetDeviceId(uint8_t* device_id);

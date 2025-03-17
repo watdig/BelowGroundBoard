@@ -459,9 +459,9 @@ int8_t edit_multiple_registers(uint8_t *tx_len)
 	}
 
 	// Protect Read only values
-	if(((first_register_address >= ADC_0) && (first_register_address <= REMOTE_QUARTERNION_Z)) ||
-		 ((last_register_address >= ADC_0) && (last_register_address <= REMOTE_QUARTERNION_Z)) ||
-		 ((first_register_address < ADC_0) && (last_register_address > REMOTE_QUARTERNION_Z)))
+	if(((first_register_address >= ADC_0) && (first_register_address <= ENCODER_SPEED)) ||
+		 ((last_register_address >= ADC_0) && (last_register_address <= ENCODER_SPEED)) ||
+		 ((first_register_address < ADC_0) && (last_register_address > ENCODER_SPEED)))
 	{
 		// Ensure that sensor values are restricted to read-only
 		return modbus_exception(MB_ILLEGAL_FUNCTION);
@@ -577,6 +577,18 @@ void handle_range(uint16_t holding_register)
 			if(holding_register_database[holding_register] > 1)
 			{
 				holding_register_database[holding_register] = 1;
+			}
+			break;
+		}
+		case ENCODER_REFRESH:
+		{
+			if(holding_register_database[holding_register] < 1000)
+			{
+				holding_register_database[holding_register] = 1000;
+			}
+			else if(holding_register_database[holding_register] > 10000)
+			{
+				holding_register_database[holding_register] = 10000;
 			}
 			break;
 		}
