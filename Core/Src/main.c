@@ -66,7 +66,7 @@ volatile int32_t encoder_pulse;
 
 uint16_t holding_register_database[NUM_HOLDING_REGISTERS] = {
 		0x0005,	// MODBUS_ID
-		0x0003, // MB_BAUD_RATE
+		0x0007, // MB_BAUD_RATE
 		   100, // MB_TRANSMIT_TIMEOUT
 		   	 2, // MB_TRANSMIT_RETRIES
 		0x0000, // MB_ERRORS
@@ -327,7 +327,7 @@ int main(void)
 			  }
 			  if(modbus_status != 0)
 			  {
-				  holding_register_database[MB_ERRORS] |= 1U << (modbus_status + (MB_FATAL_ERROR - 1));
+				  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status) + (MB_FATAL_ERROR - RANGE_ERROR));
 			  }
 		  }
 		  // Special case where you retrieve the modbus ID
@@ -340,13 +340,8 @@ int main(void)
 			  modbus_status = return_holding_registers(&modbus_tx_len);
 			  if(modbus_status != 0)
 			  {
-				  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status - 1) + MB_FATAL_ERROR);
+				  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status) + (MB_FATAL_ERROR - RANGE_ERROR));
 			  }
-		  }
-		  modbus_status = modbus_set_rx();
-		  if(modbus_status != 0)
-		  {
-			  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status - 1) + MB_FATAL_ERROR);
 		  }
 	  }
 	  modbus_status = monitor_modbus();
@@ -361,7 +356,7 @@ int main(void)
 					  modbus_status = modbus_send(modbus_tx_len);
 					  if(modbus_status != HAL_OK)
 					  {
-						  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status - 1) + MB_FATAL_ERROR);
+						  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status) + (MB_FATAL_ERROR - RANGE_ERROR));
 					  }
 				  }
 				  break;
@@ -376,7 +371,7 @@ int main(void)
 				  modbus_status = modbus_set_rx();
 				  if(modbus_status != 0)
 				  {
-					  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status - 1) + MB_FATAL_ERROR);
+					  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status) + (MB_FATAL_ERROR - RANGE_ERROR));
 				  }
 				  break;
 			  }
@@ -385,6 +380,11 @@ int main(void)
 				  while(modbus_status != HAL_OK)
 				  {
 					  modbus_status = modbus_reset();
+				  }
+				  modbus_status = modbus_set_rx();
+				  if(modbus_status != 0)
+				  {
+					  holding_register_database[MB_ERRORS] |= 1U << ((modbus_status) + (MB_FATAL_ERROR - RANGE_ERROR));
 				  }
 				  break;
 			  }
@@ -402,7 +402,7 @@ int main(void)
 			  i2c_status = bno055_queue_transaction();
 			  if(i2c_status != 0)
 			  {
-				  holding_register_database[I2C_ERRORS] |= 1U << ((i2c_status - 1) + I2C_FATAL_ERROR);
+				  holding_register_database[I2C_ERRORS] |= 1U << ((i2c_status) + (I2C_FATAL_ERROR - I2C_TX_TIMEOUT));
 			  }
 		  }
 
@@ -500,18 +500,6 @@ int main(void)
 		  }
 	  }
 	  actuate(target_actuator, holding_register_database[ADC_6 + target_actuator], holding_register_database[ACTUATOR_A_TARGET + target_actuator]);
-
-
-	  // 15 adc values relates to x cm of the linear actuator
-//	  if(holding_register_database[9 + target_actuator] >= holding_register_database[56 + target_actuator] - ACTUATOR_TOLERANCE &&
-//		 holding_register_database[9 + target_actuator] <= holding_register_database[56 + target_actuator] + ACTUATOR_TOLERANCE)
-//	  {
-//		  actuate_pwm(target_actuator, holding_register_database[9 + target_actuator], holding_register_database[56 + target_actuator]);
-//	  }
-//	  else
-//	  {
-//		  target_actuator = ((target_actuator + 1) == NUM_ACTUATORS)? 0: target_actuator + 1;
-//	  }
 
 	  // Monitor any ADC Errors
 	  adc_status = monitor_adc();
@@ -800,7 +788,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00201D2C;
+  hi2c1.Init.Timing = 0x0010020B;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -991,7 +979,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 9600;
+  huart1.Init.BaudRate = 115200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
