@@ -29,7 +29,7 @@ uint8_t rx_data[2];
 
 float pid_step(pid_t *pid, float measurement, float setpoint);
 
-int8_t actuate(uint8_t actuator, uint16_t current, uint16_t target)
+int8_t actuate(uint8_t actuator, uint16_t current, uint16_t target, uint32_t* actuator_time)
 {
 	if(selected_actuator != actuator)
 	{
@@ -71,10 +71,15 @@ int8_t actuate(uint8_t actuator, uint16_t current, uint16_t target)
 			{
 				status = DRV_Activate(actuator, current, target);
 				if(status != HAL_OK){return status;}
+				(*actuator_time) = HAL_GetTick();
 			}
 			selected_actuator = actuator;
 		}
 		return status;
+	}
+	if(!drv_shutoff)
+	{
+		TIM1->CCR1 = (uint8_t) pid_step(&pid_constraints, (float)current, (float)target);
 	}
 	return HAL_OK;
 }
@@ -128,7 +133,7 @@ int8_t DRV_Activate(uint8_t actuator, uint16_t current, uint16_t target)
 	status = DRV_SetCommand(&command);
 
 	// Set the PWM Frequency
-	TIM1->CCR1 = 40;
+	TIM1->CCR1 = (uint8_t) pid_step(&pid_constraints, (float)current, (float)target);
 
 	drv_on = 1;
 	selected_actuator = actuator;

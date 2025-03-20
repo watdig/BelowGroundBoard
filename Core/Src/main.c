@@ -161,7 +161,6 @@ static void MX_TIM1_Init(void);
 static void MX_TIM14_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
-void run_motor();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -251,7 +250,7 @@ int main(void)
   pid_constraints.T_C = 1;             // Time constant for derivative filtering
   pid_constraints.T = 100;             // Time step
   pid_constraints.max = 100;           // Max command
-  pid_constraints.min = 0;             // Min command
+  pid_constraints.min = 15;            // Min command
   pid_constraints.max_rate = 40;       // Max rate of change of the command
   pid_constraints.integral = 0;        // Integral term
   pid_constraints.err_prev = 0;        // Previous error
@@ -289,8 +288,6 @@ int main(void)
   	actuate_complete[0] = 0;
   	actuate_complete[1] = 0;
   	actuate_complete[2] = 0;
-//  	actuate(target_actuator, holding_register_database[ADC_6 + target_actuator], holding_register_database[ACTUATOR_A_TARGET + target_actuator]);
-//  	run_motor();
 
   	HAL_TIM_Base_Start_IT(&htim14);
   /* USER CODE END 2 */
@@ -499,7 +496,7 @@ int main(void)
 			  }
 		  }
 	  }
-	  actuate(target_actuator, holding_register_database[ADC_6 + target_actuator], holding_register_database[ACTUATOR_A_TARGET + target_actuator]);
+	  actuate(target_actuator, holding_register_database[ADC_6 + target_actuator], holding_register_database[ACTUATOR_A_TARGET + target_actuator], &actuator_time);
 
 	  // Monitor any ADC Errors
 	  adc_status = monitor_adc();
@@ -1108,96 +1105,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-void run_motor()
-{
-		int8_t spi_status = HAL_OK;
-		drv_command_t command = DEFAULT_DRV_COMMAND;
-		drv_spi_in_t spi_in = DEFAULT_DRV_SPI_IN;
-
-	// PWM Actuator Test
-	  HAL_GPIO_WritePin(Actuator_C_EN_GPIO_Port, Actuator_C_EN_Pin, GPIO_PIN_SET);
-//	  TIM1->CCR1 = 10;
-
-		// Independent Mode Test
-		// Unlock the SPI_IN register. Refer to section 8.6.1.5
-		command.spi_in_lock = SPI_IN_UNLOCK;
-		spi_status = DRV_SetCommand(&command);
-		spi_status |= DRV_GetCommand(&command);
-		drv_fault_summary_t fault_summary;
-		drv_status_1_t status_1;
-		drv_status_2_t status_2;
-		drv_config_1_t config_1;
-		drv_config_2_t config_2;
-		drv_config_3_t config_3;
-		drv_config_4_t config_4;
-		config_1.vmov_retry = 1;
-		spi_status |= DRV_SetConfig1(&config_1);
-		spi_status |= DRV_GetConfig1(&config_1);
-		spi_status |= DRV_GetConfig2(&config_2);
-		spi_status |= DRV_GetConfig3(&config_3);
-		spi_status |= DRV_GetConfig4(&config_4);
-
-
-		if(spi_status == HAL_OK && command.spi_in_lock == SPI_IN_UNLOCK)
-		{
-			// retract
-//			spi_in.s_en_in1 = 0;
-// 			spi_in.s_ph_in2 = 0;
-// 			spi_in.s_drv_off = 0;
-// 			spi_in.s_drv_off2 = 0;
-//			spi_status = DRV_SetSpiIn(&spi_in);
-//			spi_status |= DRV_GetSpiIn(&spi_in);
-
-
-//			spi_status = DRV_GetFaultSummary(&fault_summary);
-//			spi_status |= DRV_GetStatus2(&status_2);
-//
-			// extend
-			spi_in.s_en_in1 = 0;
-			spi_in.s_ph_in2 = 1;
-			spi_in.s_drv_off = 0;
-			spi_in.s_drv_off2 = 0;
-			spi_status = DRV_SetSpiIn(&spi_in);
-			spi_status |= DRV_GetSpiIn(&spi_in);
-
-//			if(spi_status != HAL_OK)
-//			{
-//				spi_status = 0;
-//			}
-			TIM1->CCR1 = 100;
-		}
-		HAL_Delay(1000);
-		TIM1->CCR1 = 0;
-		HAL_Delay(1000);
-		// Turn off the DRV8244
-		spi_in = DEFAULT_DRV_SPI_IN;
-		spi_status = DRV_SetSpiIn(&spi_in);
-
-		// Lock the SPI_IN register. Refer to section 8.6.1.5
-		command = DEFAULT_DRV_COMMAND;
-		spi_status = DRV_SetCommand(&command);
-
-
-		HAL_Delay(1000);
-		HAL_GPIO_WritePin(Actuator_C_EN_GPIO_Port, Actuator_C_EN_Pin, GPIO_PIN_RESET);
-
-		spi_status = DRV_GetFaultSummary(&fault_summary);
-		spi_status |= DRV_GetStatus1(&status_1);
-		spi_status |= DRV_GetStatus2(&status_2);
-		command.clr_flt = 1;
-		spi_status |= DRV_SetCommand(&command);
-
-		spi_status |= DRV_GetConfig1(&config_1);
-		spi_status |= DRV_GetConfig2(&config_2);
-		spi_status |= DRV_GetConfig3(&config_3);
-		spi_status |= DRV_GetConfig4(&config_4);
-		spi_status = DRV_GetFaultSummary(&fault_summary);
-
-
-
-		HAL_Delay(HAL_MAX_DELAY);
-}
 /* USER CODE END 4 */
 
 /**

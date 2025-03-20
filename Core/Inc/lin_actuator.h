@@ -334,7 +334,7 @@ typedef struct pid_s
     float command_prev;    // Previous command
 }pid_t;
 
-int8_t actuate(uint8_t actuator, uint16_t current, uint16_t target);
+int8_t actuate(uint8_t actuator, uint16_t current, uint16_t target, uint32_t* actuator_time);
 void DRV_Shutoff();
 uint8_t DRV_GetShutoff();
 int8_t DRV_Activate(uint8_t actuator, uint16_t current, uint16_t target);

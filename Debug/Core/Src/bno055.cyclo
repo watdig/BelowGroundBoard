@@ -28,8 +28,8 @@
 ../Core/Src/bno055.c:542:6:bno055_get_all_values	2
 ../Core/Src/bno055.c:551:9:bno055_rx	2
 ../Core/Src/bno055.c:561:8:bno055_queue_transaction	4
-../Core/Src/bno055.c:596:8:bno055_setAxisMap	2
-../Core/Src/bno055.c:622:8:monitor_i2c	7
+../Core/Src/bno055.c:595:8:bno055_setAxisMap	2
+../Core/Src/bno055.c:621:8:monitor_i2c	7
 ../Core/Src/bno055.c:663:8:bno055_write	1
 ../Core/Src/bno055.c:674:8:bno055_read	3
 ../Core/Src/bno055.c:693:8:i2c_reset	2

@@ -570,7 +570,6 @@ int8_t bno055_queue_transaction()
 	{
 		start_register = REMOTE_ACCELEROMETER_X;
 	}
-	uint8_t* buffer = (uint8_t*)(&holding_register_database[start_register]);
 	i2c_rx_int = 0;
 	i2c_rx_time = HAL_GetTick();
 	status = HAL_I2C_Mem_Read_DMA(&hi2c1, bno055_address, mem_read_map[read_index].reg,
@@ -630,6 +629,7 @@ int8_t monitor_i2c()
 		status = i2c_reset();
 		if(status != HAL_OK)
 		{
+			i2c_rx_int = 1;
 			return status;
 		}
 		return handle_i2c_error(I2C_ERROR);
