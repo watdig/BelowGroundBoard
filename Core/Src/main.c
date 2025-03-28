@@ -200,10 +200,12 @@ int main(void)
 	int8_t adc_status = HAL_OK;
 	uint8_t modbus_tx_len = 0;
 	uint16_t encoder_refresh = 10000;
+#ifdef USE_LINEAR_ACTUATOR
 	uint8_t actuate_complete[NUM_ACTUATORS];
 	uint8_t macro_consistency_count[NUM_ACTUATORS];
 	uint8_t micro_consistency_count[NUM_ACTUATORS];
 	uint32_t actuator_time = 0;
+#endif
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -274,6 +276,7 @@ int main(void)
 
   bno055_init();
 
+#ifdef USE_LINEAR_ACTUATOR
   	if(DRV_Init(DRV8244P_Q1) != HAL_OK)
   	{
   		Error_Handler();
@@ -288,6 +291,7 @@ int main(void)
   	actuate_complete[0] = 0;
   	actuate_complete[1] = 0;
   	actuate_complete[2] = 0;
+#endif
 
   	HAL_TIM_Base_Start_IT(&htim14);
   /* USER CODE END 2 */
@@ -434,6 +438,7 @@ int main(void)
 		  }
 	  }
 
+#ifdef USE_LINEAR_ACTUATOR
 	  // If the actuator is in the Micro range
 	  if(((holding_register_database[ADC_6 + target_actuator]) >= (holding_register_database[ACTUATOR_A_TARGET + target_actuator] - ACTUATOR_TOLERANCE)) &&
 		 ((holding_register_database[ADC_6 + target_actuator]) <= (holding_register_database[ACTUATOR_A_TARGET + target_actuator] + ACTUATOR_TOLERANCE)))
@@ -497,6 +502,7 @@ int main(void)
 		  }
 	  }
 	  actuate(target_actuator, holding_register_database[ADC_6 + target_actuator], holding_register_database[ACTUATOR_A_TARGET + target_actuator], &actuator_time);
+#endif
 
 	  // Monitor any ADC Errors
 	  adc_status = monitor_adc();
