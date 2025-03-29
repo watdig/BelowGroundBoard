@@ -1,3 +1,4 @@
+../Drivers/CMSIS/Include/core_cm0plus.h:987:34:__NVIC_SystemReset	1
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:4950:26:LL_ADC_IsActiveFlag_OVR	2
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_adc.h:5063:22:LL_ADC_ClearFlag_OVR	1
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_dma.h:1302:26:LL_DMA_IsActiveFlag_TC1	2
@@ -7,7 +8,7 @@
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_dma.h:1617:22:LL_DMA_ClearFlag_HT1	1
 ../Drivers/STM32C0xx_HAL_Driver/Inc/stm32c0xx_ll_dma.h:1676:22:LL_DMA_ClearFlag_TE1	1
 ../Core/Src/stm32c0xx_it.c:76:6:NMI_Handler	1
-../Core/Src/stm32c0xx_it.c:91:6:HardFault_Handler	1
+../Core/Src/stm32c0xx_it.c:91:6:HardFault_Handler	0
 ../Core/Src/stm32c0xx_it.c:106:6:SVC_Handler	1
 ../Core/Src/stm32c0xx_it.c:119:6:PendSV_Handler	1
 ../Core/Src/stm32c0xx_it.c:132:6:SysTick_Handler	1
